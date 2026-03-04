@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "../../../../lib/supabase";
-import { useUser } from "../../../../lib/user-context";
-import { CompetencePicker } from "../../../../lib/competence-picker";
+import { supabase } from "../../@/lib/supabase";
+import { useUser } from "../../@/lib/user-context";
+import { CompetencePicker } from "../../@/lib/competence-picker";
 
 // -------------------------------------------------
 // Types
@@ -43,19 +43,90 @@ function emptyItem(): ItemDraft {
 // Page
 // -------------------------------------------------
 
-export default function NewTemplatePage() {
+export default function EditTemplatePage() {
+  const params = useParams();
   const router = useRouter();
+  const templateId = params.id as string;
   const { currentUser } = useUser();
 
   // Form state
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [sections, setSections] = useState<SectionDraft[]>([emptySection()]);
+  const [sections, setSections] = useState<SectionDraft[]>([]);
   const [selectedCompetences, setSelectedCompetences] = useState<string[]>([]);
 
   // UI state
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [notDraft, setNotDraft] = useState(false);
+
+  // -------------------------------------------------
+  // Fetch existing data
+  // -------------------------------------------------
+
+  useEffect(() => {
+    async function fetchData() {
+      const { data: tpl, error: tplErr } = await supabase
+        .from("checklist_template")
+        .select("*")
+        .eq("id", templateId)
+        .single();
+
+      if (tplErr || !tpl) {
+        setLoading(false);
+        return;
+      }
+
+      if (tpl.status !== "draft") {
+        setNotDraft(true);
+        setLoading(false);
+        return;
+      }
+
+      setName(tpl.name);
+      setDescription(tpl.description || "");
+
+      const { data: secs } = await supabase
+        .from("template_section")
+        .select("id, heading_text, sort_order, template_item ( id, item_text, sort_order )")
+        .eq("template_id", templateId)
+        .order("sort_order");
+
+      if (secs) {
+        const mapped: SectionDraft[] = (secs as unknown as Array<{
+          id: string;
+          heading_text: string;
+          sort_order: number;
+          template_item: Array<{ id: string; item_text: string; sort_order: number }>;
+        }>).map((s) => ({
+          key: nextKey(),
+          heading_text: s.heading_text,
+          items:
+            [...(s.template_item || [])]
+              .sort((a, b) => a.sort_order - b.sort_order)
+              .map((i) => ({
+                key: nextKey(),
+                item_text: i.item_text,
+              })),
+        }));
+        setSections(mapped.length > 0 ? mapped : [emptySection()]);
+      }
+
+      const { data: links } = await supabase
+        .from("checklist_template_competence")
+        .select("competence_definition_id")
+        .eq("template_id", templateId);
+
+      if (links) {
+        setSelectedCompetences(links.map((l: { competence_definition_id: string }) => l.competence_definition_id));
+      }
+
+      setLoading(false);
+    }
+
+    fetchData();
+  }, [templateId]);
 
   // -------------------------------------------------
   // Section/item manipulation
@@ -134,20 +205,16 @@ export default function NewTemplatePage() {
     if (name.trim().length < 3) return "Namn måste vara minst 3 tecken.";
     if (sections.length === 0) return "Lägg till minst en rubrik.";
     for (let i = 0; i < sections.length; i++) {
-      if (!sections[i].heading_text.trim()) {
-        return `Rubrik ${i + 1} saknar text.`;
-      }
+      if (!sections[i].heading_text.trim()) return `Rubrik ${i + 1} saknar text.`;
       for (let j = 0; j < sections[i].items.length; j++) {
-        if (!sections[i].items[j].item_text.trim()) {
-          return `Rubrik ${i + 1}, moment ${j + 1} saknar text.`;
-        }
+        if (!sections[i].items[j].item_text.trim()) return `Rubrik ${i + 1}, moment ${j + 1} saknar text.`;
       }
     }
     return null;
   }
 
   // -------------------------------------------------
-  // Save
+  // Save — delete-and-recreate strategy
   // -------------------------------------------------
 
   async function handleSave() {
@@ -161,21 +228,28 @@ export default function NewTemplatePage() {
     setError("");
 
     try {
-      const { data: tpl, error: tplErr } = await supabase
+      const { error: tplErr } = await supabase
         .from("checklist_template")
-        .insert({
+        .update({
           name: name.trim(),
           description: description.trim() || null,
-          version: 1,
-          status: "draft",
-          active: true,
-          created_by: currentUser?.id || null,
+          updated_at: new Date().toISOString(),
         })
-        .select("id")
-        .single();
+        .eq("id", templateId);
 
       if (tplErr) throw new Error(`Mall: ${tplErr.message}`);
-      const templateId = tpl.id;
+
+      const { error: delSecErr } = await supabase
+        .from("template_section")
+        .delete()
+        .eq("template_id", templateId);
+      if (delSecErr) throw new Error(`Radera rubriker: ${delSecErr.message}`);
+
+      const { error: delLinkErr } = await supabase
+        .from("checklist_template_competence")
+        .delete()
+        .eq("template_id", templateId);
+      if (delLinkErr) throw new Error(`Radera behörighetskopplingar: ${delLinkErr.message}`);
 
       for (let sIdx = 0; sIdx < sections.length; sIdx++) {
         const section = sections[sIdx];
@@ -204,8 +278,7 @@ export default function NewTemplatePage() {
             const { error: itemErr } = await supabase
               .from("template_item")
               .insert(itemRows);
-            if (itemErr)
-              throw new Error(`Moment i rubrik ${sIdx + 1}: ${itemErr.message}`);
+            if (itemErr) throw new Error(`Moment i rubrik ${sIdx + 1}: ${itemErr.message}`);
           }
         }
       }
@@ -230,22 +303,53 @@ export default function NewTemplatePage() {
   }
 
   // -------------------------------------------------
+  // Loading / guards
+  // -------------------------------------------------
+
+  if (loading) {
+    return (
+      <div className="text-center py-16">
+        <p className="text-petrol-60">Laddar...</p>
+      </div>
+    );
+  }
+
+  if (notDraft) {
+    return (
+      <div className="text-center py-16">
+        <div className="bg-white rounded-xl border border-slate p-10 max-w-lg mx-auto">
+          <h1 className="text-xl font-bold text-petrol">Kan inte redigeras</h1>
+          <p className="text-petrol-60 mt-2 mb-6">
+            Bara utkast kan redigeras. Publicerade mallar är låsta — skapa en ny version istället.
+          </p>
+          <Link
+            href={`/admin/templates/${templateId}`}
+            className="inline-flex items-center justify-center bg-accent text-white rounded-3xl hover:bg-accent-80 min-h-[44px] px-6 text-sm font-medium transition-colors"
+          >
+            Tillbaka till mallen
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------
   // Render
   // -------------------------------------------------
 
   return (
     <div>
       <Link
-        href="/admin/templates"
+        href={`/admin/templates/${templateId}`}
         className="text-sm text-petrol-80 hover:text-petrol mb-4 inline-flex items-center gap-1"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
         </svg>
-        Tillbaka till mallar
+        Tillbaka till mallen
       </Link>
 
-      <h1 className="text-xl font-bold text-petrol mb-6">Skapa ny mall</h1>
+      <h1 className="text-xl font-bold text-petrol mb-6">Redigera utkast</h1>
 
       {/* Name & description */}
       <div className="bg-white rounded-xl border border-slate p-6 mb-6">
@@ -257,7 +361,6 @@ export default function NewTemplatePage() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="T.ex. Upplärning arbetsprov"
             className="w-full border border-slate rounded-lg bg-white text-petrol placeholder-petrol-60 focus:ring-petrol-60 focus:border-petrol-60 px-3 py-2 text-sm"
           />
         </div>
@@ -268,7 +371,6 @@ export default function NewTemplatePage() {
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Valfri beskrivning av mallen"
             rows={2}
             className="w-full border border-slate rounded-lg bg-white text-petrol placeholder-petrol-60 focus:ring-petrol-60 focus:border-petrol-60 px-3 py-2 text-sm"
           />
@@ -356,11 +458,11 @@ export default function NewTemplatePage() {
       )}
 
       <div className="flex items-center justify-end gap-3">
-        <Link href="/admin/templates" className="inline-flex items-center justify-center bg-white text-petrol border border-slate rounded-3xl hover:bg-cream min-h-[44px] px-6 text-sm font-medium transition-colors">
+        <Link href={`/admin/templates/${templateId}`} className="inline-flex items-center justify-center bg-white text-petrol border border-slate rounded-3xl hover:bg-cream min-h-[44px] px-6 text-sm font-medium transition-colors">
           Avbryt
         </Link>
         <button onClick={handleSave} disabled={saving} className="inline-flex items-center justify-center bg-accent text-white rounded-3xl hover:bg-accent-80 min-h-[44px] px-6 text-sm font-medium transition-colors disabled:opacity-50">
-          {saving ? "Sparar..." : "Spara utkast"}
+          {saving ? "Sparar..." : "Spara ändringar"}
         </button>
       </div>
     </div>

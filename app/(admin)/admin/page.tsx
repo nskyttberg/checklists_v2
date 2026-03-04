@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { supabase } from "../../lib/supabase";
-import { useUser } from "../../lib/user-context";
+import { supabase } from "@/lib/supabase";
+import { useUser } from "@/lib/user-context";
 
 // -------------------------------------------------
 // Types
@@ -34,7 +34,7 @@ function formatDate(iso: string) {
 
 function competenceTypeLabel(type: string): string {
   const map: Record<string, string> = {
-    examination: "Undersökning",
+    examination: "UndersÃ¶kning",
     reporting: "Svar",
     referral_review: "Remissgranskning",
     delegation: "Delegering",
@@ -50,7 +50,7 @@ function statusBadge(status: string) {
     cancelled: "bg-petrol-20 text-petrol-60",
   };
   const labels: Record<string, string> = {
-    active: "Pågående",
+    active: "PÃ¥gÃ¥ende",
     completed: "Klar",
     cancelled: "Avbruten",
   };
@@ -130,16 +130,16 @@ export default function AdminOverview() {
       <div className="text-center py-16">
         <div className="bg-white rounded-xl border border-slate p-10 max-w-lg mx-auto">
           <h1 className="text-xl font-bold text-petrol">
-            Inga pågående upplärningar
+            Inga pÃ¥gÃ¥ende upplÃ¤rningar
           </h1>
           <p className="text-petrol-60 mt-2 mb-6">
-            Tilldela en checklista till en medarbetare för att komma igång.
+            Tilldela en checklista till en medarbetare fÃ¶r att komma igÃ¥ng.
           </p>
           <Link
             href="/admin/staff"
             className="inline-flex items-center justify-center bg-accent text-white rounded-3xl hover:bg-accent-80 min-h-[44px] px-6 text-sm font-medium transition-colors"
           >
-            Gå till medarbetare
+            GÃ¥ till medarbetare
           </Link>
         </div>
       </div>
@@ -166,11 +166,11 @@ export default function AdminOverview() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-petrol">
-          Pågående upplärningar
+          PÃ¥gÃ¥ende upplÃ¤rningar
         </h1>
         <input
           type="text"
-          placeholder="Filtrera på namn eller metod..."
+          placeholder="Filtrera pÃ¥ namn eller metod..."
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           className="border border-slate rounded-lg bg-white text-petrol placeholder-petrol-60 focus:ring-petrol-60 focus:border-petrol-60 px-3 py-2 text-sm w-64"
@@ -188,7 +188,7 @@ export default function AdminOverview() {
                 Metod
               </th>
               <th className="text-left px-4 py-3 font-medium text-petrol-80">
-                Behörighet
+                BehÃ¶righet
               </th>
               <th className="text-left px-4 py-3 font-medium text-petrol-80">
                 Mall
@@ -223,7 +223,7 @@ export default function AdminOverview() {
                     {competenceTypeLabel(
                       inst.competence_definition?.competence_type
                     )}
-                    {" · "}
+                    {" Â· "}
                   </span>
                   {inst.competence_definition?.display_name}
                 </td>
@@ -245,7 +245,7 @@ export default function AdminOverview() {
                   colSpan={6}
                   className="px-4 py-8 text-center text-petrol-60"
                 >
-                  Inga träffar för &quot;{filter}&quot;
+                  Inga trÃ¤ffar fÃ¶r &quot;{filter}&quot;
                 </td>
               </tr>
             )}

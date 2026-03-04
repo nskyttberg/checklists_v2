@@ -1,31 +1,18 @@
 "use client";
+// lib/user-context.tsx
+// Dev-only user switcher. Replaced by real auth at launch.
+// Reads from employee table in schema v3.
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { supabase } from "./supabase";
-
-// -------------------------------------------------
-// Types
-// -------------------------------------------------
-
-export interface Employee {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-  site: string | null;
-  active: boolean;
-}
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { supabase } from "@/lib/supabase";
+import type { Employee } from "@/lib/types";
 
 interface UserContextValue {
   currentUser: Employee | null;
   allUsers: Employee[];
-  switchUser: (employeeId: string) => void;
+  switchUser: (id: string) => void;
   loading: boolean;
 }
-
-// -------------------------------------------------
-// Context
-// -------------------------------------------------
 
 const UserContext = createContext<UserContextValue>({
   currentUser: null,
@@ -34,55 +21,43 @@ const UserContext = createContext<UserContextValue>({
   loading: true,
 });
 
-export function useUser() {
-  return useContext(UserContext);
-}
-
-// -------------------------------------------------
-// Provider
-// -------------------------------------------------
+const SESSION_KEY = "dev_current_user";
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [allUsers, setAllUsers] = useState<Employee[]>([]);
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch all employees on mount
   useEffect(() => {
-    async function fetchEmployees() {
+    async function load() {
       const { data, error } = await supabase
         .from("employee")
         .select("*")
         .eq("active", true)
         .order("name");
 
-      if (error) {
-        console.error("Failed to fetch employees:", error.message);
+      if (error || !data) {
+        console.error("Failed to load employees:", error);
         setLoading(false);
         return;
       }
 
-      setAllUsers(data || []);
+      setAllUsers(data);
 
-      // Restore last selected user from memory, or pick first
-      const savedId =
-        typeof window !== "undefined"
-          ? sessionStorage.getItem("dev_current_user")
-          : null;
-      const restored = data?.find((e: Employee) => e.id === savedId);
-      setCurrentUser(restored || data?.[0] || null);
+      const savedId = sessionStorage.getItem(SESSION_KEY);
+      const saved = savedId ? data.find((e) => e.id === savedId) : null;
+      setCurrentUser(saved ?? data[0] ?? null);
       setLoading(false);
     }
 
-    fetchEmployees();
+    load();
   }, []);
 
-  function switchUser(employeeId: string) {
-    const user = allUsers.find((e) => e.id === employeeId) || null;
+  function switchUser(id: string) {
+    const user = allUsers.find((e) => e.id === id);
+    if (!user) return;
+    sessionStorage.setItem(SESSION_KEY, id);
     setCurrentUser(user);
-    if (typeof window !== "undefined" && user) {
-      sessionStorage.setItem("dev_current_user", user.id);
-    }
   }
 
   return (
@@ -90,4 +65,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
       {children}
     </UserContext.Provider>
   );
+}
+
+export function useUser() {
+  return useContext(UserContext);
 }

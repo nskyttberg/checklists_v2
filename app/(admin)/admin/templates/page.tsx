@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { supabase } from "../../../lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 // -------------------------------------------------
 // Types
@@ -92,9 +92,9 @@ export default function TemplatesPage() {
     return (
       <div className="text-center py-16">
         <div className="bg-white rounded-xl border border-slate p-10 max-w-lg mx-auto">
-          <h1 className="text-xl font-bold text-petrol">Inga mallar ännu</h1>
+          <h1 className="text-xl font-bold text-petrol">Inga mallar Ã¤nnu</h1>
           <p className="text-petrol-60 mt-2 mb-6">
-            Skapa din första checklistemall för att komma igång.
+            Skapa din fÃ¶rsta checklistemall fÃ¶r att komma igÃ¥ng.
           </p>
           <Link
             href="/admin/templates/new"

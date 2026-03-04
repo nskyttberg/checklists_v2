@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "../../../../lib/supabase";
-import { useUser } from "../../../../lib/user-context";
+import { supabase } from "../@/lib/supabase";
+import { useUser } from "../@/lib/user-context";
 
 // -------------------------------------------------
 // Types

@@ -1,15 +1,15 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserProvider, useUser } from "../lib/user-context";
+import { UserProvider, useUser } from "@/lib/user-context";
 
 // -------------------------------------------------
 // Nav links
 // -------------------------------------------------
 
 const navLinks = [
-  { href: "/admin", label: "Översikt" },
+  { href: "/admin", label: "Ã–versikt" },
   { href: "/admin/templates", label: "Mallar" },
   { href: "/admin/staff", label: "Medarbetare" },
 ];

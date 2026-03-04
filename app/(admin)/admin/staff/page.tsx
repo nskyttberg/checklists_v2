@@ -1,27 +1,20 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { supabase } from "../../../lib/supabase";
-
-// -------------------------------------------------
-// Types
-// -------------------------------------------------
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 interface Employee {
   id: string;
   name: string;
   email: string;
-  role: string;
+  is_admin: boolean;
   site: string | null;
   active: boolean;
 }
 
-// -------------------------------------------------
-// Page
-// -------------------------------------------------
-
 export default function StaffPage() {
+  const router = useRouter();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -31,41 +24,30 @@ export default function StaffPage() {
     async function fetchEmployees() {
       const { data, error } = await supabase
         .from("employee")
-        .select("*")
+        .select("id, name, email, is_admin, site, active")
         .eq("active", true)
         .order("name");
 
-      if (error) {
-        console.error("Failed to fetch employees:", error.message);
-      } else {
-        setEmployees(data || []);
-      }
+      if (error) console.error("Failed to fetch employees:", error.message);
+      else setEmployees(data || []);
       setLoading(false);
     }
-
     fetchEmployees();
   }, []);
 
-  // Derive unique sites for filter
   const sites = Array.from(
     new Set(employees.map((e) => e.site).filter(Boolean))
   ).sort() as string[];
 
-  // Filter
   const lowerSearch = search.toLowerCase();
   const filtered = employees.filter((emp) => {
     const matchesSearch =
       !lowerSearch ||
       emp.name.toLowerCase().includes(lowerSearch) ||
-      emp.email.toLowerCase().includes(lowerSearch) ||
-      emp.role.toLowerCase().includes(lowerSearch);
+      emp.email.toLowerCase().includes(lowerSearch);
     const matchesSite = !siteFilter || emp.site === siteFilter;
     return matchesSearch && matchesSite;
   });
-
-  // -------------------------------------------------
-  // Loading
-  // -------------------------------------------------
 
   if (loading) {
     return (
@@ -75,17 +57,11 @@ export default function StaffPage() {
     );
   }
 
-  // -------------------------------------------------
-  // Empty state
-  // -------------------------------------------------
-
   if (employees.length === 0) {
     return (
       <div className="text-center py-16">
         <div className="bg-white rounded-xl border border-slate p-10 max-w-lg mx-auto">
-          <h1 className="text-xl font-bold text-petrol">
-            Inga medarbetare ännu
-          </h1>
+          <h1 className="text-xl font-bold text-petrol">Inga medarbetare ännu</h1>
           <p className="text-petrol-60 mt-2">
             Medarbetare läggs till via databasimport eller direkt i systemet.
           </p>
@@ -93,10 +69,6 @@ export default function StaffPage() {
       </div>
     );
   }
-
-  // -------------------------------------------------
-  // Staff list
-  // -------------------------------------------------
 
   return (
     <div>
@@ -134,47 +106,30 @@ export default function StaffPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate bg-cream">
-              <th className="text-left px-4 py-3 font-medium text-petrol-80">
-                Namn
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-petrol-80">
-                E-post
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-petrol-80">
-                Roll
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-petrol-80">
-                Enhet
-              </th>
+              <th className="text-left px-4 py-3 font-medium text-petrol-80">Namn</th>
+              <th className="text-left px-4 py-3 font-medium text-petrol-80">E-post</th>
+              <th className="text-left px-4 py-3 font-medium text-petrol-80">Roll</th>
+              <th className="text-left px-4 py-3 font-medium text-petrol-80">Enhet</th>
             </tr>
           </thead>
           <tbody>
             {filtered.map((emp) => (
-              <Link
+              <tr
                 key={emp.id}
-                href={`/admin/staff/${emp.id}`}
-                className="contents"
+                onClick={() => router.push(`/admin/staff/${emp.id}`)}
+                className="border-b border-slate/50 hover:bg-cream transition-colors cursor-pointer"
               >
-                <tr className="border-b border-slate/50 hover:bg-cream transition-colors cursor-pointer">
-                  <td className="px-4 py-3 text-petrol font-medium">
-                    {emp.name}
-                  </td>
-                  <td className="px-4 py-3 text-petrol-60">{emp.email}</td>
-                  <td className="px-4 py-3 text-petrol-80 capitalize">
-                    {emp.role}
-                  </td>
-                  <td className="px-4 py-3 text-petrol-60">
-                    {emp.site || "—"}
-                  </td>
-                </tr>
-              </Link>
+                <td className="px-4 py-3 text-petrol font-medium">{emp.name}</td>
+                <td className="px-4 py-3 text-petrol-60">{emp.email}</td>
+                <td className="px-4 py-3 text-petrol-80">
+                  {emp.is_admin ? "Admin" : "Medarbetare"}
+                </td>
+                <td className="px-4 py-3 text-petrol-60">{emp.site ?? "—"}</td>
+              </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td
-                  colSpan={4}
-                  className="px-4 py-8 text-center text-petrol-60"
-                >
+                <td colSpan={4} className="px-4 py-8 text-center text-petrol-60">
                   Inga träffar för &quot;{search}&quot;
                   {siteFilter && ` på ${siteFilter}`}
                 </td>

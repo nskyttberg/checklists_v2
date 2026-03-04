@@ -44,7 +44,7 @@ function Header() {
               >
                 {allUsers.map((user) => (
                   <option key={user.id} value={user.id}>
-                    {user.name} ({user.role})
+                    {user.name} ({user.is_admin ? "Admin" : "Medarbetare"})
                   </option>
                 ))}
               </select>
@@ -94,3 +94,4 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </UserProvider>
   );
 }
+

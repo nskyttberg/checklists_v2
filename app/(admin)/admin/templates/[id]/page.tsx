@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "../@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 // -------------------------------------------------
 // Types
@@ -51,7 +51,7 @@ interface Template {
 
 function competenceTypeLabel(type: string): string {
   const map: Record<string, string> = {
-    examination: "Undersökning",
+    examination: "UndersÃ¶kning",
     reporting: "Svar",
     referral_review: "Remissgranskning",
     delegation: "Delegering",
@@ -61,7 +61,7 @@ function competenceTypeLabel(type: string): string {
 }
 
 function formatDate(iso: string | null) {
-  if (!iso) return "—";
+  if (!iso) return "â€”";
   return new Date(iso).toLocaleDateString("sv-SE");
 }
 
@@ -208,7 +208,7 @@ export default function TemplateDetailPage() {
     if (!template) return;
 
     if (template.status === "draft") {
-      if (!confirm("Vill du ta bort detta utkast? Åtgärden kan inte ångras.")) return;
+      if (!confirm("Vill du ta bort detta utkast? Ã…tgÃ¤rden kan inte Ã¥ngras.")) return;
       setActionLoading(true);
       const { error } = await supabase
         .from("checklist_template")
@@ -221,7 +221,7 @@ export default function TemplateDetailPage() {
         router.push("/admin/templates");
       }
     } else {
-      if (!confirm("Vill du avaktivera denna mall? Den försvinner från listan men finns kvar i databasen.")) return;
+      if (!confirm("Vill du avaktivera denna mall? Den fÃ¶rsvinner frÃ¥n listan men finns kvar i databasen.")) return;
       setActionLoading(true);
       const { error } = await supabase
         .from("checklist_template")
@@ -258,7 +258,7 @@ export default function TemplateDetailPage() {
       <div className="text-center py-16">
         <p className="text-petrol-60">Mallen hittades inte.</p>
         <Link href="/admin/templates" className="text-petrol-80 hover:text-petrol mt-2 inline-block">
-          ← Tillbaka till mallar
+          â† Tillbaka till mallar
         </Link>
       </div>
     );
@@ -348,7 +348,7 @@ export default function TemplateDetailPage() {
       {competenceLinks.length > 0 && (
         <div className="bg-white rounded-xl border border-slate p-6 mb-6">
           <h2 className="text-base font-bold text-petrol mb-3">
-            Leder till behörighet
+            Leder till behÃ¶righet
           </h2>
           <div className="flex flex-wrap gap-2">
             {competenceLinks.map((link) => (
@@ -359,11 +359,11 @@ export default function TemplateDetailPage() {
                 <span className="font-medium text-petrol">
                   {link.competence_definition.work_task.name}
                 </span>
-                <span className="text-petrol-60">·</span>
+                <span className="text-petrol-60">Â·</span>
                 <span className="text-petrol-60">
                   {competenceTypeLabel(link.competence_definition.competence_type)}
                 </span>
-                <span className="text-petrol-60">·</span>
+                <span className="text-petrol-60">Â·</span>
                 <span className="text-petrol-80">
                   {link.competence_definition.display_name}
                 </span>
@@ -415,3 +415,4 @@ export default function TemplateDetailPage() {
     </div>
   );
 }
+

@@ -1,11 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "../../@/lib/supabase";
-import { useUser } from "../../@/lib/user-context";
-import { CompetencePicker } from "../../@/lib/competence-picker";
+import { supabase } from "@/lib/supabase";
+import { useUser } from "@/lib/user-context";
+import { CompetencePicker } from "@/lib/competence-picker";
 
 // -------------------------------------------------
 // Types
@@ -202,8 +202,8 @@ export default function EditTemplatePage() {
   // -------------------------------------------------
 
   function validate(): string | null {
-    if (name.trim().length < 3) return "Namn måste vara minst 3 tecken.";
-    if (sections.length === 0) return "Lägg till minst en rubrik.";
+    if (name.trim().length < 3) return "Namn mÃ¥ste vara minst 3 tecken.";
+    if (sections.length === 0) return "LÃ¤gg till minst en rubrik.";
     for (let i = 0; i < sections.length; i++) {
       if (!sections[i].heading_text.trim()) return `Rubrik ${i + 1} saknar text.`;
       for (let j = 0; j < sections[i].items.length; j++) {
@@ -214,7 +214,7 @@ export default function EditTemplatePage() {
   }
 
   // -------------------------------------------------
-  // Save — delete-and-recreate strategy
+  // Save â€” delete-and-recreate strategy
   // -------------------------------------------------
 
   async function handleSave() {
@@ -249,7 +249,7 @@ export default function EditTemplatePage() {
         .from("checklist_template_competence")
         .delete()
         .eq("template_id", templateId);
-      if (delLinkErr) throw new Error(`Radera behörighetskopplingar: ${delLinkErr.message}`);
+      if (delLinkErr) throw new Error(`Radera behÃ¶righetskopplingar: ${delLinkErr.message}`);
 
       for (let sIdx = 0; sIdx < sections.length; sIdx++) {
         const section = sections[sIdx];
@@ -291,12 +291,12 @@ export default function EditTemplatePage() {
         const { error: linkErr } = await supabase
           .from("checklist_template_competence")
           .insert(linkRows);
-        if (linkErr) throw new Error(`Behörighetskoppling: ${linkErr.message}`);
+        if (linkErr) throw new Error(`BehÃ¶righetskoppling: ${linkErr.message}`);
       }
 
       router.push(`/admin/templates/${templateId}`);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Okänt fel";
+      const message = err instanceof Error ? err.message : "OkÃ¤nt fel";
       setError(`Kunde inte spara: ${message}`);
       setSaving(false);
     }
@@ -320,7 +320,7 @@ export default function EditTemplatePage() {
         <div className="bg-white rounded-xl border border-slate p-10 max-w-lg mx-auto">
           <h1 className="text-xl font-bold text-petrol">Kan inte redigeras</h1>
           <p className="text-petrol-60 mt-2 mb-6">
-            Bara utkast kan redigeras. Publicerade mallar är låsta — skapa en ny version istället.
+            Bara utkast kan redigeras. Publicerade mallar Ã¤r lÃ¥sta â€” skapa en ny version istÃ¤llet.
           </p>
           <Link
             href={`/admin/templates/${templateId}`}
@@ -439,7 +439,7 @@ export default function EditTemplatePage() {
                   </div>
                 ))}
                 <button type="button" onClick={() => addItem(section.key)} className="text-sm text-petrol-80 hover:text-petrol mt-1">
-                  + Lägg till moment
+                  + LÃ¤gg till moment
                 </button>
               </div>
             </div>
@@ -447,7 +447,7 @@ export default function EditTemplatePage() {
         </div>
 
         <button type="button" onClick={addSection} className="mt-4 inline-flex items-center justify-center bg-white text-petrol border border-slate rounded-3xl hover:bg-cream min-h-[44px] px-5 text-sm font-medium transition-colors">
-          + Lägg till rubrik
+          + LÃ¤gg till rubrik
         </button>
       </div>
 
@@ -462,9 +462,10 @@ export default function EditTemplatePage() {
           Avbryt
         </Link>
         <button onClick={handleSave} disabled={saving} className="inline-flex items-center justify-center bg-accent text-white rounded-3xl hover:bg-accent-80 min-h-[44px] px-6 text-sm font-medium transition-colors disabled:opacity-50">
-          {saving ? "Sparar..." : "Spara ändringar"}
+          {saving ? "Sparar..." : "Spara Ã¤ndringar"}
         </button>
       </div>
     </div>
   );
 }
+

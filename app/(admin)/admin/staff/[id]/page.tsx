@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "../@/lib/supabase";
-import { useUser } from "../@/lib/user-context";
+import { supabase } from "@/lib/supabase";
+import { useUser } from "@/lib/user-context";
 
 // -------------------------------------------------
 // Types
@@ -55,7 +55,7 @@ interface InstanceRow {
 
 function competenceTypeLabel(type: string): string {
   const map: Record<string, string> = {
-    examination: "Undersökning",
+    examination: "UndersÃ¶kning",
     reporting: "Svar",
     referral_review: "Remissgranskning",
     delegation: "Delegering",
@@ -65,7 +65,7 @@ function competenceTypeLabel(type: string): string {
 }
 
 function formatDate(iso: string | null) {
-  if (!iso) return "—";
+  if (!iso) return "â€”";
   return new Date(iso).toLocaleDateString("sv-SE");
 }
 
@@ -76,7 +76,7 @@ function statusBadge(status: string) {
     cancelled: "bg-petrol-20 text-petrol-60",
   };
   const labels: Record<string, string> = {
-    active: "Pågående",
+    active: "PÃ¥gÃ¥ende",
     completed: "Klar",
     cancelled: "Avbruten",
   };
@@ -167,7 +167,7 @@ export default function StaffDetailPage() {
   }, [fetchData]);
 
   // -------------------------------------------------
-  // Open modal — fetch work tasks + competence defs
+  // Open modal â€” fetch work tasks + competence defs
   // -------------------------------------------------
 
   async function openAssignModal() {
@@ -200,7 +200,7 @@ export default function StaffDetailPage() {
   // Group work tasks by category
   const groupedWorkTasks = workTasks.reduce<Record<string, WorkTask[]>>(
     (acc, wt) => {
-      const key = wt.category || "Övrigt";
+      const key = wt.category || "Ã–vrigt";
       if (!acc[key]) acc[key] = [];
       acc[key].push(wt);
       return acc;
@@ -231,7 +231,7 @@ export default function StaffDetailPage() {
       .eq("competence_definition_id", selectedCompetence);
 
     if (linkErr) {
-      setAssignError(`Kunde inte söka mallar: ${linkErr.message}`);
+      setAssignError(`Kunde inte sÃ¶ka mallar: ${linkErr.message}`);
       setAssigning(false);
       return;
     }
@@ -248,7 +248,7 @@ export default function StaffDetailPage() {
 
     if (!validLink) {
       setAssignError(
-        "Ingen publicerad checklista hittades för denna behörighet. Skapa och publicera en mall först."
+        "Ingen publicerad checklista hittades fÃ¶r denna behÃ¶righet. Skapa och publicera en mall fÃ¶rst."
       );
       setAssigning(false);
       return;
@@ -265,7 +265,7 @@ export default function StaffDetailPage() {
       // Handle duplicate
       if (assignErr.message.includes("duplicate") || assignErr.message.includes("unique")) {
         setAssignError(
-          "Medarbetaren har redan en aktiv checklista för denna behörighet."
+          "Medarbetaren har redan en aktiv checklista fÃ¶r denna behÃ¶righet."
         );
       } else {
         setAssignError(`Tilldelning misslyckades: ${assignErr.message}`);
@@ -274,7 +274,7 @@ export default function StaffDetailPage() {
       return;
     }
 
-    // Success — close modal, refresh data
+    // Success â€” close modal, refresh data
     setShowModal(false);
     setAssigning(false);
     await fetchData();
@@ -297,7 +297,7 @@ export default function StaffDetailPage() {
       <div className="text-center py-16">
         <p className="text-petrol-60">Medarbetaren hittades inte.</p>
         <Link href="/admin/staff" className="text-petrol-80 hover:text-petrol mt-2 inline-block">
-          ← Tillbaka till medarbetare
+          â† Tillbaka till medarbetare
         </Link>
       </div>
     );
@@ -350,7 +350,7 @@ export default function StaffDetailPage() {
       {instances.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate p-8 text-center">
           <p className="text-petrol-60">
-            Inga checklistor tilldelade ännu. Klicka &quot;Tilldela checklista&quot; ovan.
+            Inga checklistor tilldelade Ã¤nnu. Klicka &quot;Tilldela checklista&quot; ovan.
           </p>
         </div>
       ) : (
@@ -359,7 +359,7 @@ export default function StaffDetailPage() {
             <thead>
               <tr className="border-b border-slate bg-cream">
                 <th className="text-left px-4 py-3 font-medium text-petrol-80">Metod</th>
-                <th className="text-left px-4 py-3 font-medium text-petrol-80">Behörighet</th>
+                <th className="text-left px-4 py-3 font-medium text-petrol-80">BehÃ¶righet</th>
                 <th className="text-left px-4 py-3 font-medium text-petrol-80">Mall</th>
                 <th className="text-left px-4 py-3 font-medium text-petrol-80">Tilldelad</th>
                 <th className="text-left px-4 py-3 font-medium text-petrol-80">Status</th>
@@ -374,7 +374,7 @@ export default function StaffDetailPage() {
                   <td className="px-4 py-3 text-petrol-80">
                     <span className="text-petrol-60 text-xs">
                       {competenceTypeLabel(inst.competence_definition?.competence_type)}
-                      {" · "}
+                      {" Â· "}
                     </span>
                     {inst.competence_definition?.display_name}
                   </td>
@@ -418,7 +418,7 @@ export default function StaffDetailPage() {
               Tilldela checklista
             </h2>
             <p className="text-sm text-petrol-60 mb-5">
-              Välj metod och behörighet — systemet hittar rätt mall.
+              VÃ¤lj metod och behÃ¶righet â€” systemet hittar rÃ¤tt mall.
             </p>
 
             {/* Work task select */}
@@ -434,7 +434,7 @@ export default function StaffDetailPage() {
               }}
               className="w-full border border-slate rounded-lg bg-white text-petrol focus:ring-petrol-60 focus:border-petrol-60 px-3 py-2 text-sm mb-4"
             >
-              <option value="">Välj metod...</option>
+              <option value="">VÃ¤lj metod...</option>
               {Object.entries(groupedWorkTasks).map(([category, tasks]) => (
                 <optgroup key={category} label={category}>
                   {tasks.map((wt) => (
@@ -448,7 +448,7 @@ export default function StaffDetailPage() {
 
             {/* Competence definition select */}
             <label className="block text-sm font-medium text-petrol mb-1">
-              Behörighet
+              BehÃ¶righet
             </label>
             <select
               value={selectedCompetence}
@@ -460,11 +460,11 @@ export default function StaffDetailPage() {
               className="w-full border border-slate rounded-lg bg-white text-petrol focus:ring-petrol-60 focus:border-petrol-60 px-3 py-2 text-sm mb-4 disabled:opacity-50 disabled:bg-cream"
             >
               <option value="">
-                {selectedWorkTask ? "Välj behörighet..." : "Välj metod först"}
+                {selectedWorkTask ? "VÃ¤lj behÃ¶righet..." : "VÃ¤lj metod fÃ¶rst"}
               </option>
               {filteredCompetences.map((cd) => (
                 <option key={cd.id} value={cd.id}>
-                  {competenceTypeLabel(cd.competence_type)} · {cd.display_name}
+                  {competenceTypeLabel(cd.competence_type)} Â· {cd.display_name}
                 </option>
               ))}
             </select>
@@ -498,3 +498,4 @@ export default function StaffDetailPage() {
     </div>
   );
 }
+

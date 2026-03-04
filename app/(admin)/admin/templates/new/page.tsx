@@ -1,11 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "../@/lib/supabase";
-import { useUser } from "../@/lib/user-context";
-import { CompetencePicker } from "../@/lib/competence-picker";
+import { supabase } from "@/lib/supabase";
+import { useUser } from "@/lib/user-context";
+import { CompetencePicker } from "@/lib/competence-picker";
 
 // -------------------------------------------------
 // Types
@@ -131,8 +131,8 @@ export default function NewTemplatePage() {
   // -------------------------------------------------
 
   function validate(): string | null {
-    if (name.trim().length < 3) return "Namn mÃ¥ste vara minst 3 tecken.";
-    if (sections.length === 0) return "LÃ¤gg till minst en rubrik.";
+    if (name.trim().length < 3) return "Namn mÃƒÂ¥ste vara minst 3 tecken.";
+    if (sections.length === 0) return "LÃƒÂ¤gg till minst en rubrik.";
     for (let i = 0; i < sections.length; i++) {
       if (!sections[i].heading_text.trim()) {
         return `Rubrik ${i + 1} saknar text.`;
@@ -218,12 +218,12 @@ export default function NewTemplatePage() {
         const { error: linkErr } = await supabase
           .from("checklist_template_competence")
           .insert(linkRows);
-        if (linkErr) throw new Error(`BehÃ¶righetskoppling: ${linkErr.message}`);
+        if (linkErr) throw new Error(`BehÃƒÂ¶righetskoppling: ${linkErr.message}`);
       }
 
       router.push(`/admin/templates/${templateId}`);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "OkÃ¤nt fel";
+      const message = err instanceof Error ? err.message : "OkÃƒÂ¤nt fel";
       setError(`Kunde inte spara: ${message}`);
       setSaving(false);
     }
@@ -257,7 +257,7 @@ export default function NewTemplatePage() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="T.ex. UpplÃ¤rning arbetsprov"
+            placeholder="T.ex. UpplÃƒÂ¤rning arbetsprov"
             className="w-full border border-slate rounded-lg bg-white text-petrol placeholder-petrol-60 focus:ring-petrol-60 focus:border-petrol-60 px-3 py-2 text-sm"
           />
         </div>
@@ -337,7 +337,7 @@ export default function NewTemplatePage() {
                   </div>
                 ))}
                 <button type="button" onClick={() => addItem(section.key)} className="text-sm text-petrol-80 hover:text-petrol mt-1">
-                  + LÃ¤gg till moment
+                  + LÃƒÂ¤gg till moment
                 </button>
               </div>
             </div>
@@ -345,7 +345,7 @@ export default function NewTemplatePage() {
         </div>
 
         <button type="button" onClick={addSection} className="mt-4 inline-flex items-center justify-center bg-white text-petrol border border-slate rounded-3xl hover:bg-cream min-h-[44px] px-5 text-sm font-medium transition-colors">
-          + LÃ¤gg till rubrik
+          + LÃƒÂ¤gg till rubrik
         </button>
       </div>
 
@@ -366,3 +366,5 @@ export default function NewTemplatePage() {
     </div>
   );
 }
+
+

@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+:root {
+  --sidebar-w: 220px;
+}
+
 @theme inline {
   --color-petrol:       #004851;
   --color-petrol-80:    #4F868E;

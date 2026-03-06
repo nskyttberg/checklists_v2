@@ -1,96 +1,107 @@
 ﻿"use client";
+// app/(admin)/admin/templates/new/page.tsx
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/user-context";
-import { CompetencePicker } from "@/lib/competence-picker";
+import { CompetencePicker, CompetenceSelection } from "@/lib/competence-picker";
 
-// -------------------------------------------------
-// Types
-// -------------------------------------------------
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface SectionDraft {
-  key: string;
-  heading_text: string;
+  id: string;          // local only
+  title: string;
   items: ItemDraft[];
 }
 
 interface ItemDraft {
-  key: string;
-  item_text: string;
+  id: string;          // local only
+  text: string;
 }
 
-// -------------------------------------------------
-// Helpers
-// -------------------------------------------------
-
-let keyCounter = 0;
-function nextKey() {
-  return `k_${++keyCounter}_${Date.now()}`;
-}
-
-function emptySection(): SectionDraft {
-  return { key: nextKey(), heading_text: "", items: [emptyItem()] };
-}
-
-function emptyItem(): ItemDraft {
-  return { key: nextKey(), item_text: "" };
-}
-
-// -------------------------------------------------
-// Page
-// -------------------------------------------------
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function NewTemplatePage() {
   const router = useRouter();
   const { currentUser } = useUser();
 
-  // Form state
-  const [name, setName] = useState("");
+  const [name, setName]               = useState("");
   const [description, setDescription] = useState("");
-  const [sections, setSections] = useState<SectionDraft[]>([emptySection()]);
-  const [selectedCompetences, setSelectedCompetences] = useState<string[]>([]);
+  const [competences, setCompetences] = useState<CompetenceSelection[]>([]);
+  const [sections, setSections]       = useState<SectionDraft[]>([newSection()]);
+  const [saving, setSaving]           = useState(false);
+  const [error, setError]             = useState<string | null>(null);
 
-  // UI state
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  // ── Section helpers ─────────────────────────────────────────────────────────
 
-  // -------------------------------------------------
-  // Section/item manipulation
-  // -------------------------------------------------
+  function newSection(): SectionDraft {
+    return { id: crypto.randomUUID(), title: "", items: [newItem()] };
+  }
 
-  function updateSection(key: string, field: string, value: string) {
-    setSections((prev) =>
-      prev.map((s) => (s.key === key ? { ...s, [field]: value } : s))
-    );
+  function newItem(): ItemDraft {
+    return { id: crypto.randomUUID(), text: "" };
   }
 
   function addSection() {
-    setSections((prev) => [...prev, emptySection()]);
+    setSections((prev) => [...prev, newSection()]);
   }
 
-  function removeSection(key: string) {
-    setSections((prev) => prev.filter((s) => s.key !== key));
+  function removeSection(sectionId: string) {
+    setSections((prev) => prev.filter((s) => s.id !== sectionId));
   }
 
-  function addItem(sectionKey: string) {
+  function moveSectionUp(index: number) {
+    if (index === 0) return;
+    setSections((prev) => {
+      const next = [...prev];
+      [next[index - 1], next[index]] = [next[index], next[index - 1]];
+      return next;
+    });
+  }
+
+  function moveSectionDown(index: number) {
+    setSections((prev) => {
+      if (index >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[index], next[index + 1]] = [next[index + 1], next[index]];
+      return next;
+    });
+  }
+
+  function updateSectionTitle(sectionId: string, title: string) {
+    setSections((prev) =>
+      prev.map((s) => (s.id === sectionId ? { ...s, title } : s))
+    );
+  }
+
+  function addItem(sectionId: string) {
     setSections((prev) =>
       prev.map((s) =>
-        s.key === sectionKey ? { ...s, items: [...s.items, emptyItem()] } : s
+        s.id === sectionId ? { ...s, items: [...s.items, newItem()] } : s
       )
     );
   }
 
-  function updateItem(sectionKey: string, itemKey: string, value: string) {
+  function removeItem(sectionId: string, itemId: string) {
     setSections((prev) =>
       prev.map((s) =>
-        s.key === sectionKey
+        s.id === sectionId
+          ? { ...s, items: s.items.filter((i) => i.id !== itemId) }
+          : s
+      )
+    );
+  }
+
+  function updateItemText(sectionId: string, itemId: string, text: string) {
+    setSections((prev) =>
+      prev.map((s) =>
+        s.id === sectionId
           ? {
               ...s,
               items: s.items.map((i) =>
-                i.key === itemKey ? { ...i, item_text: value } : i
+                i.id === itemId ? { ...i, text } : i
               ),
             }
           : s
@@ -98,273 +109,260 @@ export default function NewTemplatePage() {
     );
   }
 
-  function removeItem(sectionKey: string, itemKey: string) {
-    setSections((prev) =>
-      prev.map((s) =>
-        s.key === sectionKey
-          ? { ...s, items: s.items.filter((i) => i.key !== itemKey) }
-          : s
-      )
-    );
-  }
-
-  function moveSectionUp(index: number) {
-    if (index === 0) return;
-    setSections((prev) => {
-      const copy = [...prev];
-      [copy[index - 1], copy[index]] = [copy[index], copy[index - 1]];
-      return copy;
-    });
-  }
-
-  function moveSectionDown(index: number) {
-    setSections((prev) => {
-      if (index >= prev.length - 1) return prev;
-      const copy = [...prev];
-      [copy[index], copy[index + 1]] = [copy[index + 1], copy[index]];
-      return copy;
-    });
-  }
-
-  // -------------------------------------------------
-  // Validate
-  // -------------------------------------------------
-
-  function validate(): string | null {
-    if (name.trim().length < 3) return "Namn mÃƒÂ¥ste vara minst 3 tecken.";
-    if (sections.length === 0) return "LÃƒÂ¤gg till minst en rubrik.";
-    for (let i = 0; i < sections.length; i++) {
-      if (!sections[i].heading_text.trim()) {
-        return `Rubrik ${i + 1} saknar text.`;
-      }
-      for (let j = 0; j < sections[i].items.length; j++) {
-        if (!sections[i].items[j].item_text.trim()) {
-          return `Rubrik ${i + 1}, moment ${j + 1} saknar text.`;
-        }
-      }
-    }
-    return null;
-  }
-
-  // -------------------------------------------------
-  // Save
-  // -------------------------------------------------
+  // ── Save ────────────────────────────────────────────────────────────────────
 
   async function handleSave() {
-    const validationError = validate();
-    if (validationError) {
-      setError(validationError);
+    setError(null);
+    if (!name.trim()) {
+      setError("Namn krävs.");
       return;
     }
 
     setSaving(true);
-    setError("");
-
     try {
-      const { data: tpl, error: tplErr } = await supabase
+      // 1. Create template
+      const { data: tmpl, error: tmplErr } = await supabase
         .from("checklist_template")
         .insert({
           name: name.trim(),
           description: description.trim() || null,
           version: 1,
           status: "draft",
-          active: true,
-          created_by: currentUser?.id || null,
+          created_by: currentUser?.id ?? null,
         })
         .select("id")
         .single();
 
-      if (tplErr) throw new Error(`Mall: ${tplErr.message}`);
-      const templateId = tpl.id;
+      if (tmplErr || !tmpl) throw new Error(tmplErr?.message ?? "Failed to create template");
 
-      for (let sIdx = 0; sIdx < sections.length; sIdx++) {
-        const section = sections[sIdx];
-        const { data: sec, error: secErr } = await supabase
+      const templateId = tmpl.id;
+
+      // 2. Insert sections + items
+      for (let si = 0; si < sections.length; si++) {
+        const sec = sections[si];
+        if (!sec.title.trim()) continue;
+
+        const { data: secRow, error: secErr } = await supabase
           .from("template_section")
           .insert({
             template_id: templateId,
-            heading_text: section.heading_text.trim(),
-            sort_order: sIdx + 1,
+            title: sec.title.trim(),
+            sort_order: si + 1,
           })
           .select("id")
           .single();
 
-        if (secErr) throw new Error(`Rubrik ${sIdx + 1}: ${secErr.message}`);
+        if (secErr || !secRow) throw new Error(secErr?.message ?? "Failed to insert section");
 
-        if (section.items.length > 0) {
-          const itemRows = section.items
-            .filter((i) => i.item_text.trim())
-            .map((item, iIdx) => ({
-              section_id: sec.id,
-              item_text: item.item_text.trim(),
-              sort_order: iIdx + 1,
-            }));
-
-          if (itemRows.length > 0) {
-            const { error: itemErr } = await supabase
-              .from("template_item")
-              .insert(itemRows);
-            if (itemErr)
-              throw new Error(`Moment i rubrik ${sIdx + 1}: ${itemErr.message}`);
-          }
+        const items = sec.items.filter((i) => i.text.trim());
+        if (items.length > 0) {
+          const { error: itemErr } = await supabase.from("template_item").insert(
+            items.map((item, ii) => ({
+              section_id: secRow.id,
+              text: item.text.trim(),
+              sort_order: ii + 1,
+            }))
+          );
+          if (itemErr) throw new Error(itemErr.message);
         }
       }
 
-      if (selectedCompetences.length > 0) {
-        const linkRows = selectedCompetences.map((compId) => ({
-          template_id: templateId,
-          competence_definition_id: compId,
-        }));
-        const { error: linkErr } = await supabase
-          .from("checklist_template_competence")
-          .insert(linkRows);
-        if (linkErr) throw new Error(`BehÃƒÂ¶righetskoppling: ${linkErr.message}`);
+      // 3. Link competence definitions
+      if (competences.length > 0) {
+        const { error: compErr } = await supabase.from("template_competence").insert(
+          competences.map((c) => ({
+            template_id: templateId,
+            competence_definition_id: c.competence_definition_id,
+          }))
+        );
+        if (compErr) throw new Error(compErr.message);
       }
 
       router.push(`/admin/templates/${templateId}`);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "OkÃƒÂ¤nt fel";
-      setError(`Kunde inte spara: ${message}`);
+      setError(err instanceof Error ? err.message : "Okant fel");
       setSaving(false);
     }
   }
 
-  // -------------------------------------------------
-  // Render
-  // -------------------------------------------------
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div>
+    <div className="max-w-2xl">
+      {/* Back link */}
       <Link
         href="/admin/templates"
-        className="text-sm text-petrol-80 hover:text-petrol mb-4 inline-flex items-center gap-1"
+        className="inline-flex items-center gap-1.5 text-[13px] text-petrol-60 hover:text-petrol mb-5 transition-colors"
       >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M9 2L5 7l4 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         Tillbaka till mallar
       </Link>
 
-      <h1 className="text-xl font-bold text-petrol mb-6">Skapa ny mall</h1>
+      <h1 className="text-[22px] font-bold text-petrol mb-6">Skapa ny mall</h1>
 
-      {/* Name & description */}
-      <div className="bg-white rounded-xl border border-slate p-6 mb-6">
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-petrol mb-1">
-            Namn <span className="text-error">*</span>
+      {error && (
+        <div className="mb-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[13px] px-4 py-3">
+          {error}
+        </div>
+      )}
+
+      {/* Name + description */}
+      <div className="bg-white rounded-2xl border border-slate p-5 space-y-4 mb-4">
+        <div>
+          <label className="block text-[13px] font-medium text-petrol mb-1.5">
+            Namn <span className="text-red-400">*</span>
           </label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="T.ex. UpplÃƒÂ¤rning arbetsprov"
-            className="w-full border border-slate rounded-lg bg-white text-petrol placeholder-petrol-60 focus:ring-petrol-60 focus:border-petrol-60 px-3 py-2 text-sm"
+            placeholder="T.ex. Upplärning arbetsprov"
+            className="w-full h-10 rounded-lg border border-slate px-3 text-[14px] text-petrol placeholder:text-petrol-40 focus:outline-none focus:ring-2 focus:ring-accent/40"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-petrol mb-1">
+          <label className="block text-[13px] font-medium text-petrol mb-1.5">
             Beskrivning
           </label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Valfri beskrivning av mallen"
-            rows={2}
-            className="w-full border border-slate rounded-lg bg-white text-petrol placeholder-petrol-60 focus:ring-petrol-60 focus:border-petrol-60 px-3 py-2 text-sm"
+            rows={3}
+            className="w-full rounded-lg border border-slate px-3 py-2.5 text-[14px] text-petrol placeholder:text-petrol-40 focus:outline-none focus:ring-2 focus:ring-accent/40 resize-none"
           />
         </div>
       </div>
 
       {/* Competence picker */}
-      <div className="bg-white rounded-xl border border-slate p-6 mb-6">
+      <div className="bg-white rounded-2xl border border-slate p-5 mb-4">
+        <p className="text-[13px] font-semibold text-petrol mb-3">Leder till behörighet</p>
         <CompetencePicker
-          selected={selectedCompetences}
-          onChange={setSelectedCompetences}
+          mode="multi"
+          value={competences}
+          onChange={setCompetences}
+          label="Lagg till en eller flera behorigheter som mallen ger"
         />
       </div>
 
-      {/* Sections & items */}
-      <div className="bg-white rounded-xl border border-slate p-6 mb-6">
-        <h2 className="text-base font-bold text-petrol mb-4">
-          Rubriker och moment
-        </h2>
+      {/* Sections */}
+      <div className="bg-white rounded-2xl border border-slate p-5 mb-6">
+        <p className="text-[13px] font-semibold text-petrol mb-4">Rubriker och moment</p>
 
-        <div className="space-y-5">
-          {sections.map((section, sIdx) => (
-            <div key={section.key} className="border border-slate/50 rounded-lg p-4">
-              <div className="flex items-start gap-2 mb-3">
-                <span className="w-7 h-7 rounded-full bg-petrol-20 text-petrol flex items-center justify-center text-sm font-medium shrink-0 mt-1">
-                  {sIdx + 1}
+        <div className="space-y-4">
+          {sections.map((sec, si) => (
+            <div key={sec.id} className="border border-slate rounded-xl p-4">
+              {/* Section header row */}
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-6 h-6 rounded-full bg-petrol text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0">
+                  {si + 1}
                 </span>
                 <input
                   type="text"
-                  value={section.heading_text}
-                  onChange={(e) => updateSection(section.key, "heading_text", e.target.value)}
+                  value={sec.title}
+                  onChange={(e) => updateSectionTitle(sec.id, e.target.value)}
                   placeholder="Rubriktext"
-                  className="flex-1 border border-slate rounded-lg bg-white text-petrol placeholder-petrol-60 focus:ring-petrol-60 focus:border-petrol-60 px-3 py-2 text-sm font-medium"
+                  className="flex-1 h-9 rounded-lg border border-slate px-3 text-[13px] text-petrol placeholder:text-petrol-40 focus:outline-none focus:ring-2 focus:ring-accent/40"
                 />
-                <div className="flex items-center gap-1 shrink-0">
-                  <button type="button" onClick={() => moveSectionUp(sIdx)} disabled={sIdx === 0} className="p-1.5 text-petrol-60 hover:text-petrol disabled:opacity-30" title="Flytta upp">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
+                {/* Move up/down */}
+                <button
+                  onClick={() => moveSectionUp(si)}
+                  disabled={si === 0}
+                  className="p-1 text-petrol-40 hover:text-petrol disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  aria-label="Flytta upp"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M3 9l4-4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => moveSectionDown(si)}
+                  disabled={si === sections.length - 1}
+                  className="p-1 text-petrol-40 hover:text-petrol disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  aria-label="Flytta ned"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                {/* Remove section */}
+                {sections.length > 1 && (
+                  <button
+                    onClick={() => removeSection(sec.id)}
+                    className="p-1 text-petrol-40 hover:text-red-500 transition-colors"
+                    aria-label="Ta bort rubrik"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
                   </button>
-                  <button type="button" onClick={() => moveSectionDown(sIdx)} disabled={sIdx === sections.length - 1} className="p-1.5 text-petrol-60 hover:text-petrol disabled:opacity-30" title="Flytta ner">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
-                  </button>
-                  {sections.length > 1 && (
-                    <button type="button" onClick={() => removeSection(section.key)} className="p-1.5 text-error hover:bg-error-light rounded" title="Ta bort rubrik">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
 
-              <div className="ml-9 space-y-2">
-                {section.items.map((item, iIdx) => (
-                  <div key={item.key} className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-accent-40 text-petrol flex items-center justify-center text-xs font-medium shrink-0">
-                      {iIdx + 1}
+              {/* Items */}
+              <div className="pl-8 space-y-2">
+                {sec.items.map((item, ii) => (
+                  <div key={item.id} className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                      {ii + 1}
                     </span>
                     <input
                       type="text"
-                      value={item.item_text}
-                      onChange={(e) => updateItem(section.key, item.key, e.target.value)}
+                      value={item.text}
+                      onChange={(e) => updateItemText(sec.id, item.id, e.target.value)}
                       placeholder="Momenttext"
-                      className="flex-1 border border-slate rounded-lg bg-white text-petrol placeholder-petrol-60 focus:ring-petrol-60 focus:border-petrol-60 px-3 py-1.5 text-sm"
+                      className="flex-1 h-8 rounded-lg border border-slate px-3 text-[13px] text-petrol placeholder:text-petrol-40 focus:outline-none focus:ring-2 focus:ring-accent/40"
                     />
-                    <button type="button" onClick={() => removeItem(section.key, item.key)} className="p-1 text-petrol-40 hover:text-error" title="Ta bort moment">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
+                    {sec.items.length > 1 && (
+                      <button
+                        onClick={() => removeItem(sec.id, item.id)}
+                        className="p-1 text-petrol-40 hover:text-red-500 transition-colors"
+                        aria-label="Ta bort moment"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                          <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 ))}
-                <button type="button" onClick={() => addItem(section.key)} className="text-sm text-petrol-80 hover:text-petrol mt-1">
-                  + LÃƒÂ¤gg till moment
+                <button
+                  onClick={() => addItem(sec.id)}
+                  className="text-[12px] text-accent hover:text-accent/80 font-medium transition-colors"
+                >
+                  + Lagg till moment
                 </button>
               </div>
             </div>
           ))}
         </div>
 
-        <button type="button" onClick={addSection} className="mt-4 inline-flex items-center justify-center bg-white text-petrol border border-slate rounded-3xl hover:bg-cream min-h-[44px] px-5 text-sm font-medium transition-colors">
-          + LÃƒÂ¤gg till rubrik
+        <button
+          onClick={addSection}
+          className="mt-4 text-[13px] text-petrol border border-slate rounded-lg px-4 py-2 hover:bg-sand transition-colors"
+        >
+          + Lagg till rubrik
         </button>
       </div>
 
-      {error && (
-        <div className="bg-error-light border border-error/20 rounded-xl text-error text-sm px-4 py-3 mb-4">
-          {error}
-        </div>
-      )}
-
-      <div className="flex items-center justify-end gap-3">
-        <Link href="/admin/templates" className="inline-flex items-center justify-center bg-white text-petrol border border-slate rounded-3xl hover:bg-cream min-h-[44px] px-6 text-sm font-medium transition-colors">
+      {/* Actions */}
+      <div className="flex justify-end gap-3">
+        <button
+          onClick={() => router.push("/admin/templates")}
+          className="px-5 py-2.5 rounded-full border border-slate text-[13px] text-petrol hover:bg-sand transition-colors"
+        >
           Avbryt
-        </Link>
-        <button onClick={handleSave} disabled={saving} className="inline-flex items-center justify-center bg-accent text-white rounded-3xl hover:bg-accent-80 min-h-[44px] px-6 text-sm font-medium transition-colors disabled:opacity-50">
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={saving || !name.trim()}
+          className="px-5 py-2.5 rounded-full bg-accent text-white text-[13px] font-semibold hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
           {saving ? "Sparar..." : "Spara utkast"}
         </button>
       </div>
     </div>
   );
 }
-
-

@@ -11,19 +11,19 @@ import { supabase } from "@/lib/supabase";
 
 interface TemplateItem {
   id: string;
-  item_text: string;
+  text: string;         // schema v3: text (not item_text)
   sort_order: number;
 }
 
 interface TemplateSection {
   id: string;
-  heading_text: string;
+  title: string;        // schema v3: title (not heading_text)
   sort_order: number;
   template_item: TemplateItem[];
 }
 
 interface CompetenceLink {
-  id: string;
+  competence_definition_id: string;
   competence_definition: {
     id: string;
     display_name: string;
@@ -42,49 +42,31 @@ interface Template {
   active: boolean;
   created_at: string;
   published_at: string | null;
-  created_by: string | null;
 }
 
 // -------------------------------------------------
 // Helpers
 // -------------------------------------------------
 
-function competenceTypeLabel(type: string): string {
-  const map: Record<string, string> = {
-    examination: "UndersÃ¶kning",
-    reporting: "Svar",
-    referral_review: "Remissgranskning",
-    delegation: "Delegering",
-    remote_work: "Distansarbete",
-  };
-  return map[type] || type;
-}
+const COMPETENCE_TYPE_LABELS: Record<string, string> = {
+  examination:     "Undersökning",
+  reporting:       "Svar",
+  referral_review: "Remissgranskning",
+  delegation:      "Delegering",
+  remote_work:     "Distansarbete",
+};
 
 function formatDate(iso: string | null) {
-  if (!iso) return "â€”";
+  if (!iso) return "—";
   return new Date(iso).toLocaleDateString("sv-SE");
 }
 
 function statusBadge(status: string, active: boolean) {
-  if (status === "published" && active) {
-    return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-light text-success">
-        Publicerad
-      </span>
-    );
-  }
-  if (status === "published" && !active) {
-    return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-petrol-20 text-petrol-60">
-        Inaktiv
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-warning-light text-warning">
-      Utkast
-    </span>
-  );
+  if (status === "published" && active)
+    return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-light text-success">Publicerad</span>;
+  if (status === "published" && !active)
+    return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-petrol-20 text-petrol-60">Inaktiv</span>;
+  return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-warning-light text-warning">Utkast</span>;
 }
 
 // -------------------------------------------------
@@ -96,69 +78,58 @@ export default function TemplateDetailPage() {
   const router = useRouter();
   const templateId = params.id as string;
 
-  const [template, setTemplate] = useState<Template | null>(null);
-  const [sections, setSections] = useState<TemplateSection[]>([]);
+  const [template, setTemplate]           = useState<Template | null>(null);
+  const [sections, setSections]           = useState<TemplateSection[]>([]);
   const [competenceLinks, setCompetenceLinks] = useState<CompetenceLink[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]             = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [publishWarning, setPublishWarning] = useState<string[] | null>(null);
+
+  // -------------------------------------------------
+  // Fetch
+  // -------------------------------------------------
 
   useEffect(() => {
     async function fetchData() {
-      // Template
       const { data: tpl, error: tplErr } = await supabase
         .from("checklist_template")
         .select("*")
         .eq("id", templateId)
         .single();
 
-      if (tplErr) {
-        console.error("Failed to fetch template:", tplErr.message);
-        setLoading(false);
-        return;
-      }
+      if (tplErr || !tpl) { setLoading(false); return; }
       setTemplate(tpl);
 
-      // Sections with items
-      const { data: secs, error: secErr } = await supabase
+      // Sections + items — schema v3 field names: title, text
+      const { data: secs } = await supabase
         .from("template_section")
-        .select("id, heading_text, sort_order, template_item ( id, item_text, sort_order )")
+        .select("id, title, sort_order, template_item ( id, text, sort_order )")
         .eq("template_id", templateId)
         .order("sort_order");
 
-      if (!secErr && secs) {
+      if (secs) {
         const sorted = (secs as unknown as TemplateSection[]).map((s) => ({
           ...s,
-          template_item: [...(s.template_item || [])].sort(
-            (a, b) => a.sort_order - b.sort_order
-          ),
+          template_item: [...(s.template_item || [])].sort((a, b) => a.sort_order - b.sort_order),
         }));
         setSections(sorted);
       }
 
-      // Competence links
-      const { data: links, error: linkErr } = await supabase
-        .from("checklist_template_competence")
-        .select(
-          `
-          id,
+      // Competence links — schema v3 table: template_competence
+      const { data: links } = await supabase
+        .from("template_competence")
+        .select(`
+          competence_definition_id,
           competence_definition:competence_definition_id (
-            id,
-            display_name,
-            competence_type,
-            level,
+            id, display_name, competence_type, level,
             work_task:work_task_id ( id, name, category )
           )
-        `
-        )
+        `)
         .eq("template_id", templateId);
 
-      if (!linkErr && links) {
-        setCompetenceLinks(links as unknown as CompetenceLink[]);
-      }
-
+      if (links) setCompetenceLinks(links as unknown as CompetenceLink[]);
       setLoading(false);
     }
-
     fetchData();
   }, [templateId]);
 
@@ -169,35 +140,42 @@ export default function TemplateDetailPage() {
   async function handlePublish() {
     if (!template || template.status !== "draft") return;
     setActionLoading(true);
+    setPublishWarning(null);
 
-    const { error } = await supabase.rpc("publish_template", {
+    const { data, error } = await supabase.rpc("publish_template", {
       p_template_id: template.id,
     });
 
     if (error) {
-      alert(`Kunde inte publicera: ${error.message}`);
+      // Strip internal prefix for user-friendly message
+      const msg = error.message.replace(/^publish_failed:\s*/i, "");
+      alert(`Kunde inte publicera: ${msg}`);
     } else {
-      // Refresh
-      const { data } = await supabase
+      // Check for removed_competences warning in response
+      const warnings = (data as any)?.warnings?.removed_competences as string[] | undefined;
+      if (warnings && warnings.length > 0) setPublishWarning(warnings);
+
+      const { data: refreshed } = await supabase
         .from("checklist_template")
         .select("*")
         .eq("id", templateId)
         .single();
-      if (data) setTemplate(data);
+      if (refreshed) setTemplate(refreshed);
     }
     setActionLoading(false);
   }
 
   async function handleNewVersion() {
-    if (!template || template.status !== "published") return;
+    if (!template || template.status !== "published" || !template.active) return;
     setActionLoading(true);
 
-    const { data, error } = await supabase.rpc("create_new_template_version", {
-      p_published_template_id: template.id,
+    const { data, error } = await supabase.rpc("create_new_version", {
+      p_template_id: template.id,
     });
 
     if (error) {
-      alert(`Kunde inte skapa ny version: ${error.message}`);
+      const msg = error.message.replace(/^create_version_failed:\s*/i, "");
+      alert(`Kunde inte skapa ny version: ${msg}`);
     } else if (data) {
       router.push(`/admin/templates/${data}`);
     }
@@ -208,33 +186,18 @@ export default function TemplateDetailPage() {
     if (!template) return;
 
     if (template.status === "draft") {
-      if (!confirm("Vill du ta bort detta utkast? Ã…tgÃ¤rden kan inte Ã¥ngras.")) return;
+      if (!confirm("Vill du ta bort detta utkast? Åtgärden kan inte ångras.")) return;
       setActionLoading(true);
-      const { error } = await supabase
-        .from("checklist_template")
-        .delete()
-        .eq("id", template.id);
-      if (error) {
-        alert(`Kunde inte ta bort: ${error.message}`);
-        setActionLoading(false);
-      } else {
-        router.push("/admin/templates");
-      }
+      const { error } = await supabase.from("checklist_template").delete().eq("id", template.id);
+      if (error) { alert(`Kunde inte ta bort: ${error.message}`); setActionLoading(false); }
+      else router.push("/admin/templates");
     } else {
-      if (!confirm("Vill du avaktivera denna mall? Den fÃ¶rsvinner frÃ¥n listan men finns kvar i databasen.")) return;
+      if (!confirm("Vill du avaktivera denna mall? Den försvinner från listan men finns kvar i databasen.")) return;
       setActionLoading(true);
-      const { error } = await supabase
-        .from("checklist_template")
-        .update({ active: false })
-        .eq("id", template.id);
-      if (error) {
-        alert(`Kunde inte avaktivera: ${error.message}`);
-      } else {
-        const { data } = await supabase
-          .from("checklist_template")
-          .select("*")
-          .eq("id", templateId)
-          .single();
+      const { error } = await supabase.from("checklist_template").update({ active: false }).eq("id", template.id);
+      if (error) { alert(`Kunde inte avaktivera: ${error.message}`); }
+      else {
+        const { data } = await supabase.from("checklist_template").select("*").eq("id", templateId).single();
         if (data) setTemplate(data);
       }
       setActionLoading(false);
@@ -245,24 +208,14 @@ export default function TemplateDetailPage() {
   // Loading / not found
   // -------------------------------------------------
 
-  if (loading) {
-    return (
-      <div className="text-center py-16">
-        <p className="text-petrol-60">Laddar...</p>
-      </div>
-    );
-  }
+  if (loading) return <div className="text-center py-16"><p className="text-petrol-60">Laddar...</p></div>;
 
-  if (!template) {
-    return (
-      <div className="text-center py-16">
-        <p className="text-petrol-60">Mallen hittades inte.</p>
-        <Link href="/admin/templates" className="text-petrol-80 hover:text-petrol mt-2 inline-block">
-          â† Tillbaka till mallar
-        </Link>
-      </div>
-    );
-  }
+  if (!template) return (
+    <div className="text-center py-16">
+      <p className="text-petrol-60">Mallen hittades inte.</p>
+      <Link href="/admin/templates" className="text-petrol-80 hover:text-petrol mt-2 inline-block">Tillbaka till mallar</Link>
+    </div>
+  );
 
   // -------------------------------------------------
   // Render
@@ -270,16 +223,26 @@ export default function TemplateDetailPage() {
 
   return (
     <div>
-      {/* Back link */}
-      <Link
-        href="/admin/templates"
-        className="text-sm text-petrol-80 hover:text-petrol mb-4 inline-flex items-center gap-1"
-      >
+      <Link href="/admin/templates" className="text-sm text-petrol-80 hover:text-petrol mb-4 inline-flex items-center gap-1">
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
         </svg>
         Tillbaka till mallar
       </Link>
+
+      {/* Publish warning banner */}
+      {publishWarning && (
+        <div className="mb-4 rounded-xl bg-warning-light border border-warning/30 px-5 py-3">
+          <p className="text-sm font-semibold text-warning mb-1">Behörigheter borttagna i denna version</p>
+          <p className="text-xs text-warning/80">
+            Följande behörigheter täcks inte längre av någon aktiv mall:{" "}
+            <span className="font-medium">{publishWarning.join(", ")}</span>
+          </p>
+          <button onClick={() => setPublishWarning(null)} className="text-xs text-warning/60 hover:text-warning mt-1 underline">
+            Stäng
+          </button>
+        </div>
+      )}
 
       {/* Header card */}
       <div className="bg-white rounded-xl border border-slate p-6 mb-6">
@@ -297,13 +260,11 @@ export default function TemplateDetailPage() {
             )}
             <div className="flex gap-4 text-xs text-petrol-60">
               <span>Skapad: {formatDate(template.created_at)}</span>
-              {template.published_at && (
-                <span>Publicerad: {formatDate(template.published_at)}</span>
-              )}
+              {template.published_at && <span>Publicerad: {formatDate(template.published_at)}</span>}
             </div>
           </div>
 
-          {/* Action buttons */}
+          {/* Actions */}
           <div className="flex gap-2 shrink-0 ml-4">
             {template.status === "draft" && (
               <>
@@ -335,7 +296,7 @@ export default function TemplateDetailPage() {
               <button
                 onClick={handleDeactivate}
                 disabled={actionLoading}
-                className="inline-flex items-center justify-center text-error rounded-3xl hover:bg-error-light min-h-[44px] px-5 text-sm font-medium transition-colors disabled:opacity-50"
+                className="inline-flex items-center justify-center text-red-500 rounded-3xl hover:bg-red-50 min-h-[44px] px-5 text-sm font-medium transition-colors disabled:opacity-50"
               >
                 {template.status === "draft" ? "Ta bort" : "Avaktivera"}
               </button>
@@ -347,26 +308,18 @@ export default function TemplateDetailPage() {
       {/* Competence links */}
       {competenceLinks.length > 0 && (
         <div className="bg-white rounded-xl border border-slate p-6 mb-6">
-          <h2 className="text-base font-bold text-petrol mb-3">
-            Leder till behÃ¶righet
-          </h2>
+          <h2 className="text-base font-bold text-petrol mb-3">Leder till behörighet</h2>
           <div className="flex flex-wrap gap-2">
             {competenceLinks.map((link) => (
               <div
-                key={link.id}
+                key={link.competence_definition_id}
                 className="inline-flex items-center gap-1.5 bg-cream rounded-lg px-3 py-1.5 text-sm"
               >
-                <span className="font-medium text-petrol">
-                  {link.competence_definition.work_task.name}
-                </span>
-                <span className="text-petrol-60">Â·</span>
-                <span className="text-petrol-60">
-                  {competenceTypeLabel(link.competence_definition.competence_type)}
-                </span>
-                <span className="text-petrol-60">Â·</span>
-                <span className="text-petrol-80">
-                  {link.competence_definition.display_name}
-                </span>
+                <span className="font-medium text-petrol">{link.competence_definition.work_task.name}</span>
+                <span className="text-petrol-40">·</span>
+                <span className="text-petrol-60">{COMPETENCE_TYPE_LABELS[link.competence_definition.competence_type] ?? link.competence_definition.competence_type}</span>
+                <span className="text-petrol-40">·</span>
+                <span className="text-petrol-80">{link.competence_definition.display_name}</span>
               </div>
             ))}
           </div>
@@ -375,10 +328,7 @@ export default function TemplateDetailPage() {
 
       {/* Sections and items */}
       <div className="bg-white rounded-xl border border-slate p-6">
-        <h2 className="text-base font-bold text-petrol mb-4">
-          Rubriker och moment
-        </h2>
-
+        <h2 className="text-base font-bold text-petrol mb-4">Rubriker och moment</h2>
         {sections.length === 0 ? (
           <p className="text-petrol-60 text-sm">Inga rubriker tillagda.</p>
         ) : (
@@ -389,20 +339,16 @@ export default function TemplateDetailPage() {
                   <span className="w-7 h-7 rounded-full bg-petrol-20 text-petrol flex items-center justify-center text-sm font-medium shrink-0">
                     {sIdx + 1}
                   </span>
-                  <h3 className="text-sm font-bold text-petrol">
-                    {section.heading_text}
-                  </h3>
+                  <h3 className="text-sm font-bold text-petrol">{section.title}</h3>
                 </div>
                 {section.template_item.length > 0 && (
                   <ul className="ml-9 space-y-1">
                     {section.template_item.map((item, iIdx) => (
                       <li key={item.id} className="flex items-start gap-2">
-                        <span className="w-5 h-5 rounded-full bg-accent-40 text-petrol flex items-center justify-center text-xs font-medium shrink-0 mt-0.5">
+                        <span className="w-5 h-5 rounded-full bg-accent/20 text-petrol flex items-center justify-center text-xs font-medium shrink-0 mt-0.5">
                           {iIdx + 1}
                         </span>
-                        <span className="text-sm text-petrol-80">
-                          {item.item_text}
-                        </span>
+                        <span className="text-sm text-petrol-80">{item.text}</span>
                       </li>
                     ))}
                   </ul>
@@ -415,4 +361,3 @@ export default function TemplateDetailPage() {
     </div>
   );
 }
-

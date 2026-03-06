@@ -34,23 +34,23 @@ function formatDate(iso: string) {
 
 function competenceTypeLabel(type: string): string {
   const map: Record<string, string> = {
-    examination: "UndersÃ¶kning",
-    reporting: "Svar",
+    examination:     "Undersökning",
+    reporting:       "Svar",
     referral_review: "Remissgranskning",
-    delegation: "Delegering",
-    remote_work: "Distansarbete",
+    delegation:      "Delegering",
+    remote_work:     "Distansarbete",
   };
   return map[type] || type;
 }
 
 function statusBadge(status: string) {
   const styles: Record<string, string> = {
-    active: "bg-warning-light text-warning",
+    active:    "bg-warning-light text-warning",
     completed: "bg-success-light text-success",
     cancelled: "bg-petrol-20 text-petrol-60",
   };
   const labels: Record<string, string> = {
-    active: "PÃ¥gÃ¥ende",
+    active:    "Pågående",
     completed: "Klar",
     cancelled: "Avbruten",
   };
@@ -108,47 +108,15 @@ export default function AdminOverview() {
     fetchInstances();
   }, []);
 
-  // Filter
   const lowerFilter = filter.toLowerCase();
   const filtered = instances.filter((inst) => {
     if (!lowerFilter) return true;
     return (
       inst.employee?.name?.toLowerCase().includes(lowerFilter) ||
-      inst.competence_definition?.work_task?.name
-        ?.toLowerCase()
-        .includes(lowerFilter) ||
+      inst.competence_definition?.work_task?.name?.toLowerCase().includes(lowerFilter) ||
       inst.checklist_template?.name?.toLowerCase().includes(lowerFilter)
     );
   });
-
-  // -------------------------------------------------
-  // Empty state
-  // -------------------------------------------------
-
-  if (!loading && instances.length === 0) {
-    return (
-      <div className="text-center py-16">
-        <div className="bg-white rounded-xl border border-slate p-10 max-w-lg mx-auto">
-          <h1 className="text-xl font-bold text-petrol">
-            Inga pÃ¥gÃ¥ende upplÃ¤rningar
-          </h1>
-          <p className="text-petrol-60 mt-2 mb-6">
-            Tilldela en checklista till en medarbetare fÃ¶r att komma igÃ¥ng.
-          </p>
-          <Link
-            href="/admin/staff"
-            className="inline-flex items-center justify-center bg-accent text-white rounded-3xl hover:bg-accent-80 min-h-[44px] px-6 text-sm font-medium transition-colors"
-          >
-            GÃ¥ till medarbetare
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  // -------------------------------------------------
-  // Loading
-  // -------------------------------------------------
 
   if (loading) {
     return (
@@ -158,19 +126,32 @@ export default function AdminOverview() {
     );
   }
 
-  // -------------------------------------------------
-  // Table view
-  // -------------------------------------------------
+  if (!loading && instances.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <div className="bg-white rounded-xl border border-slate p-10 max-w-lg mx-auto">
+          <h1 className="text-xl font-bold text-petrol">Inga pågående upplärningar</h1>
+          <p className="text-petrol-60 mt-2 mb-6">
+            Tilldela en checklista till en medarbetare för att komma igång.
+          </p>
+          <Link
+            href="/admin/staff"
+            className="inline-flex items-center justify-center bg-accent text-white rounded-3xl hover:bg-accent-80 min-h-[44px] px-6 text-sm font-medium transition-colors"
+          >
+            Gå till medarbetare
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-petrol">
-          PÃ¥gÃ¥ende upplÃ¤rningar
-        </h1>
+        <h1 className="text-xl font-bold text-petrol">Pågående upplärningar</h1>
         <input
           type="text"
-          placeholder="Filtrera pÃ¥ namn eller metod..."
+          placeholder="Filtrera på namn eller metod..."
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           className="border border-slate rounded-lg bg-white text-petrol placeholder-petrol-60 focus:ring-petrol-60 focus:border-petrol-60 px-3 py-2 text-sm w-64"
@@ -181,24 +162,12 @@ export default function AdminOverview() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate bg-cream">
-              <th className="text-left px-4 py-3 font-medium text-petrol-80">
-                Medarbetare
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-petrol-80">
-                Metod
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-petrol-80">
-                BehÃ¶righet
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-petrol-80">
-                Mall
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-petrol-80">
-                Tilldelad
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-petrol-80">
-                Status
-              </th>
+              <th className="text-left px-4 py-3 font-medium text-petrol-80">Medarbetare</th>
+              <th className="text-left px-4 py-3 font-medium text-petrol-80">Metod</th>
+              <th className="text-left px-4 py-3 font-medium text-petrol-80">Behörighet</th>
+              <th className="text-left px-4 py-3 font-medium text-petrol-80">Mall</th>
+              <th className="text-left px-4 py-3 font-medium text-petrol-80">Tilldelad</th>
+              <th className="text-left px-4 py-3 font-medium text-petrol-80">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -220,10 +189,8 @@ export default function AdminOverview() {
                 </td>
                 <td className="px-4 py-3 text-petrol-80">
                   <span className="text-petrol-60 text-xs">
-                    {competenceTypeLabel(
-                      inst.competence_definition?.competence_type
-                    )}
-                    {" Â· "}
+                    {competenceTypeLabel(inst.competence_definition?.competence_type)}
+                    {" · "}
                   </span>
                   {inst.competence_definition?.display_name}
                 </td>
@@ -241,11 +208,8 @@ export default function AdminOverview() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td
-                  colSpan={6}
-                  className="px-4 py-8 text-center text-petrol-60"
-                >
-                  Inga trÃ¤ffar fÃ¶r &quot;{filter}&quot;
+                <td colSpan={6} className="px-4 py-8 text-center text-petrol-60">
+                  Inga träffar för &quot;{filter}&quot;
                 </td>
               </tr>
             )}

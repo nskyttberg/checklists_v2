@@ -1,10 +1,10 @@
 "use client";
 // app/(admin)/_components/sidebar/sidebar-nav.tsx
-// Navigation links. Active state from usePathname() — no props needed beyond collapsed.
-// Add new nav items to NAV_SECTIONS only.
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
+// ── Icons ─────────────────────────────────────────────────────────────────────
 
 const Icons = {
   overview: (
@@ -37,7 +37,23 @@ const Icons = {
   ),
 };
 
-const NAV_SECTIONS = [
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface NavItem {
+  label: string;
+  href: string;
+  icon: React.ReactElement;
+  disabled?: boolean;   // ← explicit optional — fixes TS union error
+}
+
+interface NavSection {
+  label: string;
+  items: NavItem[];
+}
+
+// ── Nav definition ────────────────────────────────────────────────────────────
+
+const NAV_SECTIONS: NavSection[] = [
   {
     label: "Checklistor",
     items: [
@@ -54,6 +70,8 @@ const NAV_SECTIONS = [
   },
 ];
 
+// ── Component ────────────────────────────────────────────────────────────────
+
 export function SidebarNav({ collapsed }: { collapsed: boolean }) {
   const pathname = usePathname();
 
@@ -64,7 +82,6 @@ export function SidebarNav({ collapsed }: { collapsed: boolean }) {
     <nav className="flex-1 py-2.5 overflow-y-auto overflow-x-hidden">
       {NAV_SECTIONS.map((section) => (
         <div key={section.label}>
-          {/* Section label */}
           <div
             className={`text-[10px] font-bold tracking-[0.08em] uppercase text-petrol-60 px-4 pt-3 pb-1 whitespace-nowrap transition-opacity duration-150 ${
               collapsed ? "opacity-0" : "opacity-100"
@@ -123,7 +140,6 @@ export function SidebarNav({ collapsed }: { collapsed: boolean }) {
                   {item.label}
                 </span>
 
-                {/* Tooltip when collapsed */}
                 {collapsed && (
                   <span className="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-petrol-80 text-white text-xs px-2.5 py-1 rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-100 shadow-lg z-50">
                     {item.label}

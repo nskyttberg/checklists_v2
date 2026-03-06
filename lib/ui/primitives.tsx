@@ -133,3 +133,94 @@ export function getInitials(name: string): string {
     .map((n) => n[0].toUpperCase())
     .join("");
 }
+
+// ── Banners ───────────────────────────────────────────────────────────────────
+// Inline feedback — replaces browser alert() and confirm().
+//
+// import { ErrorBanner, WarningBanner, ConfirmBanner } from "@/lib/ui/primitives";
+
+function XIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function ErrorBanner({
+  message,
+  onClose,
+}: {
+  message: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="mb-4 rounded-xl bg-red-50 border border-red-200 px-5 py-3 flex items-start justify-between gap-4">
+      <div>
+        <p className="text-sm font-semibold text-red-700 mb-0.5">Något gick fel</p>
+        <p className="text-xs text-red-600">{message}</p>
+      </div>
+      <button onClick={onClose} className="shrink-0 mt-0.5 text-red-300 hover:text-red-500 transition-colors" aria-label="Stäng">
+        <XIcon />
+      </button>
+    </div>
+  );
+}
+
+export function WarningBanner({
+  title = "Observera",
+  lines,
+  onClose,
+}: {
+  title?: string;
+  lines: string[];
+  onClose: () => void;
+}) {
+  return (
+    <div className="mb-4 rounded-xl bg-warning-light border border-warning/30 px-5 py-3 flex items-start justify-between gap-4">
+      <div>
+        <p className="text-sm font-semibold text-warning mb-0.5">{title}</p>
+        <p className="text-xs text-warning/80 font-medium">{lines.join(", ")}</p>
+      </div>
+      <button onClick={onClose} className="shrink-0 mt-0.5 text-warning/40 hover:text-warning transition-colors" aria-label="Stäng">
+        <XIcon />
+      </button>
+    </div>
+  );
+}
+
+export function ConfirmBanner({
+  message,
+  confirmLabel,
+  danger = false,
+  onConfirm,
+  onCancel,
+}: {
+  message: string;
+  confirmLabel: string;
+  danger?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="mb-4 rounded-xl bg-white border border-slate px-5 py-4 flex items-center justify-between gap-4 shadow-sm">
+      <p className="text-sm text-petrol">{message}</p>
+      <div className="flex gap-2 shrink-0">
+        <button
+          onClick={onCancel}
+          className="inline-flex items-center justify-center border border-slate rounded-3xl px-4 py-2 text-xs font-medium text-petrol hover:bg-cream transition-colors"
+        >
+          Avbryt
+        </button>
+        <button
+          onClick={onConfirm}
+          className={`inline-flex items-center justify-center rounded-3xl px-4 py-2 text-xs font-medium text-white transition-colors ${
+            danger ? "bg-red-500 hover:bg-red-600" : "bg-accent hover:bg-accent/90"
+          }`}
+        >
+          {confirmLabel}
+        </button>
+      </div>
+    </div>
+  );
+}

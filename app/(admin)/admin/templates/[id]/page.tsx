@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { ErrorBanner, WarningBanner, ConfirmBanner } from "@/lib/ui/primitives";
 
 // -------------------------------------------------
 // Types
@@ -11,13 +12,13 @@ import { supabase } from "@/lib/supabase";
 
 interface TemplateItem {
   id: string;
-  text: string;         // schema v3: text (not item_text)
+  text: string;
   sort_order: number;
 }
 
 interface TemplateSection {
   id: string;
-  title: string;        // schema v3: title (not heading_text)
+  title: string;
   sort_order: number;
   template_item: TemplateItem[];
 }
@@ -78,12 +79,14 @@ export default function TemplateDetailPage() {
   const router = useRouter();
   const templateId = params.id as string;
 
-  const [template, setTemplate]           = useState<Template | null>(null);
-  const [sections, setSections]           = useState<TemplateSection[]>([]);
+  const [template, setTemplate]               = useState<Template | null>(null);
+  const [sections, setSections]               = useState<TemplateSection[]>([]);
   const [competenceLinks, setCompetenceLinks] = useState<CompetenceLink[]>([]);
-  const [loading, setLoading]             = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [publishWarning, setPublishWarning] = useState<string[] | null>(null);
+  const [loading, setLoading]                 = useState(true);
+  const [actionLoading, setActionLoading]     = useState(false);
+  const [actionError, setActionError]         = useState<string | null>(null);
+  const [publishWarning, setPublishWarning]   = useState<string[] | null>(null);
+  const [confirmAction, setConfirmAction]     = useState<"delete" | "deactivate" | null>(null);
 
   // -------------------------------------------------
   // Fetch
@@ -100,7 +103,6 @@ export default function TemplateDetailPage() {
       if (tplErr || !tpl) { setLoading(false); return; }
       setTemplate(tpl);
 
-      // Sections + items — schema v3 field names: title, text
       const { data: secs } = await supabase
         .from("template_section")
         .select("id, title, sort_order, template_item ( id, text, sort_order )")
@@ -108,14 +110,14 @@ export default function TemplateDetailPage() {
         .order("sort_order");
 
       if (secs) {
-        const sorted = (secs as unknown as TemplateSection[]).map((s) => ({
-          ...s,
-          template_item: [...(s.template_item || [])].sort((a, b) => a.sort_order - b.sort_order),
-        }));
-        setSections(sorted);
+        setSections(
+          (secs as unknown as TemplateSection[]).map((s) => ({
+            ...s,
+            template_item: [...(s.template_item || [])].sort((a, b) => a.sort_order - b.sort_order),
+          }))
+        );
       }
 
-      // Competence links — schema v3 table: template_competence
       const { data: links } = await supabase
         .from("template_competence")
         .select(`
@@ -140,6 +142,7 @@ export default function TemplateDetailPage() {
   async function handlePublish() {
     if (!template || template.status !== "draft") return;
     setActionLoading(true);
+    setActionError(null);
     setPublishWarning(null);
 
     const { data, error } = await supabase.rpc("publish_template", {
@@ -147,19 +150,12 @@ export default function TemplateDetailPage() {
     });
 
     if (error) {
-      // Strip internal prefix for user-friendly message
-      const msg = error.message.replace(/^publish_failed:\s*/i, "");
-      alert(`Kunde inte publicera: ${msg}`);
+      setActionError(error.message.replace(/^publish_failed:\s*/i, ""));
     } else {
-      // Check for removed_competences warning in response
       const warnings = (data as any)?.warnings?.removed_competences as string[] | undefined;
-      if (warnings && warnings.length > 0) setPublishWarning(warnings);
-
+      if (warnings?.length) setPublishWarning(warnings);
       const { data: refreshed } = await supabase
-        .from("checklist_template")
-        .select("*")
-        .eq("id", templateId)
-        .single();
+        .from("checklist_template").select("*").eq("id", templateId).single();
       if (refreshed) setTemplate(refreshed);
     }
     setActionLoading(false);
@@ -168,36 +164,38 @@ export default function TemplateDetailPage() {
   async function handleNewVersion() {
     if (!template || template.status !== "published" || !template.active) return;
     setActionLoading(true);
+    setActionError(null);
 
     const { data, error } = await supabase.rpc("create_new_version", {
       p_template_id: template.id,
     });
 
     if (error) {
-      const msg = error.message.replace(/^create_version_failed:\s*/i, "");
-      alert(`Kunde inte skapa ny version: ${msg}`);
+      setActionError(error.message.replace(/^create_version_failed:\s*/i, ""));
+      setActionLoading(false);
     } else if (data) {
       router.push(`/admin/templates/${data}`);
     }
-    setActionLoading(false);
   }
 
-  async function handleDeactivate() {
+  async function handleDeactivateConfirmed() {
     if (!template) return;
+    setConfirmAction(null);
+    setActionLoading(true);
+    setActionError(null);
 
     if (template.status === "draft") {
-      if (!confirm("Vill du ta bort detta utkast? Åtgärden kan inte ångras.")) return;
-      setActionLoading(true);
       const { error } = await supabase.from("checklist_template").delete().eq("id", template.id);
-      if (error) { alert(`Kunde inte ta bort: ${error.message}`); setActionLoading(false); }
+      if (error) { setActionError(`Kunde inte ta bort: ${error.message}`); setActionLoading(false); }
       else router.push("/admin/templates");
     } else {
-      if (!confirm("Vill du avaktivera denna mall? Den försvinner från listan men finns kvar i databasen.")) return;
-      setActionLoading(true);
-      const { error } = await supabase.from("checklist_template").update({ active: false }).eq("id", template.id);
-      if (error) { alert(`Kunde inte avaktivera: ${error.message}`); }
-      else {
-        const { data } = await supabase.from("checklist_template").select("*").eq("id", templateId).single();
+      const { error } = await supabase
+        .from("checklist_template").update({ active: false }).eq("id", template.id);
+      if (error) {
+        setActionError(`Kunde inte avaktivera: ${error.message}`);
+      } else {
+        const { data } = await supabase
+          .from("checklist_template").select("*").eq("id", templateId).single();
         if (data) setTemplate(data);
       }
       setActionLoading(false);
@@ -213,9 +211,14 @@ export default function TemplateDetailPage() {
   if (!template) return (
     <div className="text-center py-16">
       <p className="text-petrol-60">Mallen hittades inte.</p>
-      <Link href="/admin/templates" className="text-petrol-80 hover:text-petrol mt-2 inline-block">Tillbaka till mallar</Link>
+      <Link href="/admin/templates" className="text-petrol-80 hover:text-petrol mt-2 inline-block">
+        Tillbaka till mallar
+      </Link>
     </div>
   );
+
+  const isDraft          = template.status === "draft";
+  const isActivePublished = template.status === "published" && template.active;
 
   // -------------------------------------------------
   // Render
@@ -223,25 +226,41 @@ export default function TemplateDetailPage() {
 
   return (
     <div>
-      <Link href="/admin/templates" className="text-sm text-petrol-80 hover:text-petrol mb-4 inline-flex items-center gap-1">
+      <Link href="/admin/templates" className="text-sm text-petrol-60 hover:text-petrol mb-5 inline-flex items-center gap-1 transition-colors">
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
         </svg>
         Tillbaka till mallar
       </Link>
 
-      {/* Publish warning banner */}
+      {/* Banners — imported from @/lib/ui/primitives */}
+      {actionError && (
+        <ErrorBanner message={actionError} onClose={() => setActionError(null)} />
+      )}
       {publishWarning && (
-        <div className="mb-4 rounded-xl bg-warning-light border border-warning/30 px-5 py-3">
-          <p className="text-sm font-semibold text-warning mb-1">Behörigheter borttagna i denna version</p>
-          <p className="text-xs text-warning/80">
-            Följande behörigheter täcks inte längre av någon aktiv mall:{" "}
-            <span className="font-medium">{publishWarning.join(", ")}</span>
-          </p>
-          <button onClick={() => setPublishWarning(null)} className="text-xs text-warning/60 hover:text-warning mt-1 underline">
-            Stäng
-          </button>
-        </div>
+        <WarningBanner
+          title="Behörigheter borttagna i denna version"
+          lines={publishWarning}
+          onClose={() => setPublishWarning(null)}
+        />
+      )}
+      {confirmAction === "delete" && (
+        <ConfirmBanner
+          message="Vill du ta bort detta utkast? Åtgärden kan inte ångras."
+          confirmLabel="Ta bort"
+          danger
+          onConfirm={handleDeactivateConfirmed}
+          onCancel={() => setConfirmAction(null)}
+        />
+      )}
+      {confirmAction === "deactivate" && (
+        <ConfirmBanner
+          message="Vill du avaktivera denna mall? Den försvinner från listan men finns kvar i databasen."
+          confirmLabel="Avaktivera"
+          danger
+          onConfirm={handleDeactivateConfirmed}
+          onCancel={() => setConfirmAction(null)}
+        />
       )}
 
       {/* Header card */}
@@ -264,9 +283,8 @@ export default function TemplateDetailPage() {
             </div>
           </div>
 
-          {/* Actions */}
           <div className="flex gap-2 shrink-0 ml-4">
-            {template.status === "draft" && (
+            {isDraft && (
               <>
                 <Link
                   href={`/admin/templates/${template.id}/edit`}
@@ -277,28 +295,28 @@ export default function TemplateDetailPage() {
                 <button
                   onClick={handlePublish}
                   disabled={actionLoading}
-                  className="inline-flex items-center justify-center bg-accent text-white rounded-3xl hover:bg-accent-80 min-h-[44px] px-5 text-sm font-medium transition-colors disabled:opacity-50"
+                  className="inline-flex items-center justify-center bg-accent text-white rounded-3xl hover:bg-accent/90 min-h-[44px] px-5 text-sm font-medium transition-colors disabled:opacity-50"
                 >
-                  Publicera
+                  {actionLoading ? "Publicerar..." : "Publicera"}
                 </button>
               </>
             )}
-            {template.status === "published" && template.active && (
+            {isActivePublished && (
               <button
                 onClick={handleNewVersion}
                 disabled={actionLoading}
-                className="inline-flex items-center justify-center bg-accent text-white rounded-3xl hover:bg-accent-80 min-h-[44px] px-5 text-sm font-medium transition-colors disabled:opacity-50"
+                className="inline-flex items-center justify-center bg-accent text-white rounded-3xl hover:bg-accent/90 min-h-[44px] px-5 text-sm font-medium transition-colors disabled:opacity-50"
               >
-                Skapa ny version
+                {actionLoading ? "Skapar..." : "Skapa ny version"}
               </button>
             )}
-            {(template.status === "draft" || (template.status === "published" && template.active)) && (
+            {(isDraft || isActivePublished) && (
               <button
-                onClick={handleDeactivate}
-                disabled={actionLoading}
-                className="inline-flex items-center justify-center text-red-500 rounded-3xl hover:bg-red-50 min-h-[44px] px-5 text-sm font-medium transition-colors disabled:opacity-50"
+                onClick={() => setConfirmAction(isDraft ? "delete" : "deactivate")}
+                disabled={actionLoading || confirmAction !== null}
+                className="inline-flex items-center justify-center text-red-500 rounded-3xl hover:bg-red-50 min-h-[44px] px-5 text-sm font-medium transition-colors disabled:opacity-40"
               >
-                {template.status === "draft" ? "Ta bort" : "Avaktivera"}
+                {isDraft ? "Ta bort" : "Avaktivera"}
               </button>
             )}
           </div>
@@ -317,7 +335,9 @@ export default function TemplateDetailPage() {
               >
                 <span className="font-medium text-petrol">{link.competence_definition.work_task.name}</span>
                 <span className="text-petrol-40">·</span>
-                <span className="text-petrol-60">{COMPETENCE_TYPE_LABELS[link.competence_definition.competence_type] ?? link.competence_definition.competence_type}</span>
+                <span className="text-petrol-60">
+                  {COMPETENCE_TYPE_LABELS[link.competence_definition.competence_type] ?? link.competence_definition.competence_type}
+                </span>
                 <span className="text-petrol-40">·</span>
                 <span className="text-petrol-80">{link.competence_definition.display_name}</span>
               </div>

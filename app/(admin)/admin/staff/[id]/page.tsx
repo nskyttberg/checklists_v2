@@ -105,20 +105,19 @@ export default function StaffDetailPage() {
   const [loading, setLoading]     = useState(true);
 
   // Modal state
-  const [showModal, setShowModal]               = useState(false);
-  const [workTasks, setWorkTasks]               = useState<WorkTask[]>([]);
-  const [competenceDefs, setCompetenceDefs]     = useState<CompetenceDefinition[]>([]);
-  const [selectedWorkTask, setSelectedWorkTask] = useState("");
+  const [showModal, setShowModal]                   = useState(false);
+  const [workTasks, setWorkTasks]                   = useState<WorkTask[]>([]);
+  const [competenceDefs, setCompetenceDefs]         = useState<CompetenceDefinition[]>([]);
+  const [selectedWorkTask, setSelectedWorkTask]     = useState("");
   const [selectedCompetence, setSelectedCompetence] = useState("");
-  const [assigning, setAssigning]   = useState(false);
-  const [assignError, setAssignError] = useState("");
+  const [assigning, setAssigning]                   = useState(false);
+  const [assignError, setAssignError]               = useState("");
 
   // -------------------------------------------------
   // Fetch employee + instances
   // -------------------------------------------------
 
   const fetchData = useCallback(async () => {
-    // schema v3: is_admin instead of role
     const { data: emp, error: empErr } = await supabase
       .from("employee")
       .select("id, name, email, is_admin, site")
@@ -211,7 +210,8 @@ export default function StaffDetailPage() {
 
   // -------------------------------------------------
   // Assign checklist
-  // schema v3: table is "template_competence" (not "checklist_template_competence")
+  // schema v3: assign_checklist(p_employee_id, p_competence_definition_id, p_assigned_by_id)
+  // The RPC finds the correct published template internally — no p_template_id needed.
   // -------------------------------------------------
 
   async function handleAssign() {
@@ -219,37 +219,7 @@ export default function StaffDetailPage() {
     setAssigning(true);
     setAssignError("");
 
-    // Find active published template for this competence_definition
-    const { data: links, error: linkErr } = await supabase
-      .from("template_competence")                          // ← schema v3 name
-      .select(`
-        template_id,
-        checklist_template:template_id ( id, status, active )
-      `)
-      .eq("competence_definition_id", selectedCompetence);
-
-    if (linkErr) {
-      setAssignError(`Kunde inte söka mallar: ${linkErr.message}`);
-      setAssigning(false);
-      return;
-    }
-
-    const validLink = (
-      links as unknown as Array<{
-        template_id: string;
-        checklist_template: { id: string; status: string; active: boolean };
-      }>
-    )?.find(
-      (l) => l.checklist_template?.status === "published" && l.checklist_template?.active === true
-    );
-
-    if (!validLink) {
-      setAssignError("Ingen publicerad checklista hittades för denna behörighet. Skapa och publicera en mall först.");
-      setAssigning(false);
-      return;
-    }
-
-    // Check for existing active instance
+    // Pre-check: existing active instance gives a cleaner UX error than the RPC exception
     const { data: existing } = await supabase
       .from("checklist_instance")
       .select("id")
@@ -265,14 +235,19 @@ export default function StaffDetailPage() {
     }
 
     const { error: assignErr } = await supabase.rpc("assign_checklist", {
-      p_template_id:               validLink.template_id,
-      p_employee_id:               employeeId,
-      p_competence_definition_id:  selectedCompetence,
-      p_assigned_by_id:            currentUser?.id ?? null,
+      p_employee_id:              employeeId,
+      p_competence_definition_id: selectedCompetence,
+      p_assigned_by_id:           currentUser?.id ?? null,
     });
 
     if (assignErr) {
-      setAssignError(`Tilldelning misslyckades: ${assignErr.message}`);
+      // Map RPC exception messages to Swedish
+      let msg = assignErr.message;
+      if (msg.includes("No published template"))
+        msg = "Ingen publicerad mall hittades för denna behörighet. Skapa och publicera en mall först.";
+      if (msg.includes("already has an active checklist"))
+        msg = "Medarbetaren har redan en aktiv checklista för denna behörighet.";
+      setAssignError(msg);
       setAssigning(false);
       return;
     }
@@ -367,9 +342,9 @@ export default function StaffDetailPage() {
                   </td>
                   <td className="px-4 py-3 text-petrol-80">
                     <span className="text-petrol-60 text-xs">
-                      {competenceTypeLabel(inst.competence_definition?.competence_type)} · 
+                      {competenceTypeLabel(inst.competence_definition?.competence_type)} ·{" "}
                     </span>
-                    {" "}{inst.competence_definition?.display_name}
+                    {inst.competence_definition?.display_name}
                   </td>
                   <td className="px-4 py-3 text-petrol-60">
                     {inst.checklist_template?.name}

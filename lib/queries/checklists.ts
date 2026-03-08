@@ -215,15 +215,29 @@ export async function signAsSupervisor(
   return true;
 }
 
+// Supervisor can unsign a section as long as the trainee has not yet
+// final-signed the entire checklist (signed_by_trainee_at IS NULL on the instance).
+// Once the trainee has final-signed, the checklist is locked for approver review.
 export async function unsignAsSupervisor(
   instanceId: string,
   signatureId: string
 ): Promise<boolean> {
+  // Verify the instance has not been final-signed by the trainee
+  const { data: instance } = await supabase
+    .from("checklist_instance")
+    .select("signed_by_trainee_at")
+    .eq("id", instanceId)
+    .single();
+
+  if (instance?.signed_by_trainee_at) {
+    console.error("unsignAsSupervisor: checklist already final-signed by trainee");
+    return false;
+  }
+
   const { error } = await supabase
     .from("section_signature")
     .update({ signed_by_supervisor_id: null, signed_by_supervisor_at: null })
-    .eq("id", signatureId)
-    .is("signed_by_trainee_id", null);
+    .eq("id", signatureId);
 
   if (error) { console.error("unsignAsSupervisor error:", error.message); return false; }
   return true;

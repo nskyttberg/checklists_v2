@@ -43,28 +43,6 @@ function competenceTypeLabel(type: string): string {
   return map[type] || type;
 }
 
-function statusBadge(status: string) {
-  const styles: Record<string, string> = {
-    active:    "bg-warning-light text-warning",
-    completed: "bg-success-light text-success",
-    cancelled: "bg-petrol-20 text-petrol-60",
-  };
-  const labels: Record<string, string> = {
-    active:    "Pågående",
-    completed: "Klar",
-    cancelled: "Avbruten",
-  };
-  return (
-    <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-        styles[status] || "bg-petrol-20 text-petrol"
-      }`}
-    >
-      {labels[status] || status}
-    </span>
-  );
-}
-
 // -------------------------------------------------
 // Page
 // -------------------------------------------------
@@ -95,6 +73,7 @@ export default function AdminOverview() {
           )
         `
         )
+        .eq("status", "active")
         .order("assigned_at", { ascending: false });
 
       if (error) {
@@ -167,7 +146,6 @@ export default function AdminOverview() {
               <th className="text-left px-4 py-3 font-medium text-petrol-80">Behörighet</th>
               <th className="text-left px-4 py-3 font-medium text-petrol-80">Mall</th>
               <th className="text-left px-4 py-3 font-medium text-petrol-80">Tilldelad</th>
-              <th className="text-left px-4 py-3 font-medium text-petrol-80">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -203,12 +181,11 @@ export default function AdminOverview() {
                 <td className="px-4 py-3 text-petrol-60">
                   {formatDate(inst.assigned_at)}
                 </td>
-                <td className="px-4 py-3">{statusBadge(inst.status)}</td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-petrol-60">
+                <td colSpan={5} className="px-4 py-8 text-center text-petrol-60">
                   Inga träffar för &quot;{filter}&quot;
                 </td>
               </tr>

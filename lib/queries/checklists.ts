@@ -5,47 +5,40 @@
 
 import { supabase } from "@/lib/supabase";
 
-// ─── Shared shape used across all /my/ views ──────────────────────────────
+// ——— Shared shape used across all /my/ views ——————————————————————————————
 
 export interface SectionData {
-  // From section_signature
   signature_id: string;
   section_id: string;
   signed_by_trainee_id: string | null;
   signed_by_trainee_at: string | null;
   signed_by_supervisor_id: string | null;
   signed_by_supervisor_at: string | null;
-  // From template_section
+  signed_by_supervisor_name: string | null;
   title: string;
   sort_order: number;
-  // From template_item (nested)
   items: { id: string; text: string; sort_order: number }[];
 }
 
 export interface MyChecklist {
-  // From checklist_instance
-  id: string;           // instance id
+  id: string;
   status: string;
   assigned_at: string;
   employee_id: string;
   employee_name: string;
-  // From checklist_template
+  signed_by_trainee_at: string | null;  // instance-level trainee final signature
   template_name: string;
   template_version: number;
-  // From competence_definition
   competence_display_name: string;
   competence_level: number;
-  // From work_task
   work_task_id: string;
   work_task_name: string;
   work_task_category: string | null;
-  // Sections with signatures
   sections: SectionData[];
 }
 
-// ─── Fetch helpers ─────────────────────────────────────────────────────────
+// ——— Fetch helpers ————————————————————————————————————————————————————————
 
-// Build sections array from raw Supabase join data
 function buildSections(rawSections: any[]): SectionData[] {
   return rawSections
     .sort((a, b) => a.template_section.sort_order - b.template_section.sort_order)
@@ -56,70 +49,54 @@ function buildSections(rawSections: any[]): SectionData[] {
       signed_by_trainee_at: row.signed_by_trainee_at,
       signed_by_supervisor_id: row.signed_by_supervisor_id,
       signed_by_supervisor_at: row.signed_by_supervisor_at,
+      signed_by_supervisor_name: row.signed_by_supervisor?.name ?? null,
       title: row.template_section.title,
       sort_order: row.template_section.sort_order,
       items: (row.template_section.template_item ?? [])
         .sort((a: any, b: any) => a.sort_order - b.sort_order)
-        .map((item: any) => ({
-          id: item.id,
-          text: item.text,
-          sort_order: item.sort_order,
-        })),
+        .map((item: any) => ({ id: item.id, text: item.text, sort_order: item.sort_order })),
     }));
 }
 
-// Shared instance query — fetches all joins needed for MyChecklist
-async function fetchInstances(filter: {
-  employee_id?: string;
-  status?: string;
-}): Promise<MyChecklist[]> {
-  let query = supabase
-    .from("checklist_instance")
-    .select(`
-      id,
-      status,
-      assigned_at,
-      employee_id,
-      employee:employee_id ( name ),
-      checklist_template ( name, version ),
-      competence_definition (
-        level,
-        display_name,
-        work_task ( id, name, category )
-      ),
-      section_signature (
-        id,
-        section_id,
-        signed_by_trainee_id,
-        signed_by_trainee_at,
-        signed_by_supervisor_id,
-        signed_by_supervisor_at,
-        template_section (
-          title,
-          sort_order,
-          template_item ( id, text, sort_order )
-        )
-      )
-    `);
+const SECTION_SIGNATURE_SELECT = `
+  id,
+  section_id,
+  signed_by_trainee_id,
+  signed_by_trainee_at,
+  signed_by_supervisor_id,
+  signed_by_supervisor_at,
+  signed_by_supervisor:signed_by_supervisor_id ( name ),
+  template_section (
+    title,
+    sort_order,
+    template_item ( id, text, sort_order )
+  )
+`;
 
-  if (filter.employee_id) {
-    query = query.eq("employee_id", filter.employee_id);
-  }
-  if (filter.status) {
-    query = query.eq("status", filter.status);
-  }
+const INSTANCE_SELECT = `
+  id,
+  status,
+  assigned_at,
+  signed_by_trainee_at,
+  employee_id,
+  employee:employee_id ( name ),
+  checklist_template ( name, version ),
+  competence_definition (
+    level,
+    display_name,
+    work_task ( id, name, category )
+  ),
+  section_signature (
+    ${SECTION_SIGNATURE_SELECT}
+  )
+`;
 
-  const { data, error } = await query;
-
-  if (error) {
-    console.error("fetchInstances error:", error);
-    return [];
-  }
-
-  return (data ?? []).map((row: any) => ({
+function mapInstance(row: any): MyChecklist {
+  return {
     id: row.id,
     status: row.status,
     assigned_at: row.assigned_at,
+    signed_by_trainee_at: row.signed_by_trainee_at ?? null,
     employee_id: row.employee_id,
     employee_name: row.employee?.name ?? "",
     template_name: row.checklist_template?.name ?? "",
@@ -130,22 +107,23 @@ async function fetchInstances(filter: {
     work_task_name: row.competence_definition?.work_task?.name ?? "",
     work_task_category: row.competence_definition?.work_task?.category ?? null,
     sections: buildSections(row.section_signature ?? []),
-  }));
+  };
 }
 
-// ─── Public query functions ────────────────────────────────────────────────
+// ——— Public query functions ———————————————————————————————————————————————
 
-// Checklists assigned to this employee (trainee view)
 export async function fetchMyChecklists(employeeId: string): Promise<MyChecklist[]> {
-  return fetchInstances({ employee_id: employeeId, status: "active" });
+  const { data, error } = await supabase
+    .from("checklist_instance")
+    .select(INSTANCE_SELECT)
+    .eq("employee_id", employeeId)
+    .eq("status", "active");
+
+  if (error) { console.error("fetchMyChecklists error:", error); return []; }
+  return (data ?? []).map(mapInstance);
 }
 
-// Active checklists where current user can counter-sign (supervisor view)
-// Fetches all active instances NOT belonging to the user,
-// then filters client-side by employee_competence.
-// Server-side filtering via can_sign_section() added when RLS is enabled.
 export async function fetchSupervisableChecklists(supervisorId: string): Promise<MyChecklist[]> {
-  // Get supervisor's competences
   const { data: competences } = await supabase
     .from("employee_competence")
     .select("work_task_id, level")
@@ -153,41 +131,14 @@ export async function fetchSupervisableChecklists(supervisorId: string): Promise
 
   if (!competences || competences.length === 0) return [];
 
-  // Get all active instances not belonging to this user
   const { data: instances, error } = await supabase
     .from("checklist_instance")
-    .select(`
-      id,
-      status,
-      assigned_at,
-      employee_id,
-      employee:employee_id ( name ),
-      checklist_template ( name, version ),
-      competence_definition (
-        level,
-        display_name,
-        work_task ( id, name, category )
-      ),
-      section_signature (
-        id,
-        section_id,
-        signed_by_trainee_id,
-        signed_by_trainee_at,
-        signed_by_supervisor_id,
-        signed_by_supervisor_at,
-        template_section (
-          title,
-          sort_order,
-          template_item ( id, text, sort_order )
-        )
-      )
-    `)
+    .select(INSTANCE_SELECT)
     .eq("status", "active")
     .neq("employee_id", supervisorId);
 
   if (error || !instances) return [];
 
-  // Filter: supervisor must have competence level >= instance level for work_task
   return instances
     .filter((row: any) => {
       const workTaskId = row.competence_definition?.work_task?.id;
@@ -196,26 +147,48 @@ export async function fetchSupervisableChecklists(supervisorId: string): Promise
         (c) => c.work_task_id === workTaskId && c.level >= requiredLevel
       );
     })
-    .map((row: any) => ({
-      id: row.id,
-      status: row.status,
-      assigned_at: row.assigned_at,
-      employee_id: row.employee_id,
-      employee_name: row.employee?.name ?? "",
-      template_name: row.checklist_template?.name ?? "",
-      template_version: row.checklist_template?.version ?? 1,
-      competence_display_name: row.competence_definition?.display_name ?? "",
-      competence_level: row.competence_definition?.level ?? 1,
-      work_task_id: row.competence_definition?.work_task?.id ?? "",
-      work_task_name: row.competence_definition?.work_task?.name ?? "",
-      work_task_category: row.competence_definition?.work_task?.category ?? null,
-      sections: buildSections(row.section_signature ?? []),
-    }));
+    .map(mapInstance);
 }
 
-// ─── Signing mutations ─────────────────────────────────────────────────────
+// Checklists ready for approver final sign-off.
+// Requires: trainee has final-signed + all sections signed by both parties.
+export async function fetchApprovableChecklists(approverId: string): Promise<MyChecklist[]> {
+  const { data: approverRows } = await supabase
+    .from("approver")
+    .select("work_task_id")
+    .eq("employee_id", approverId);
 
-// Trainee signs a section (calls DB RPC)
+  if (!approverRows || approverRows.length === 0) return [];
+
+  const approvesAll = approverRows.some((r) => r.work_task_id === null);
+  const approvedTaskIds = approverRows
+    .filter((r) => r.work_task_id !== null)
+    .map((r) => r.work_task_id as string);
+
+  const { data: instances, error } = await supabase
+    .from("checklist_instance")
+    .select(INSTANCE_SELECT)
+    .eq("status", "active")
+    .not("signed_by_trainee_at", "is", null)
+    .neq("employee_id", approverId);
+
+  if (error || !instances) return [];
+
+  return instances
+    .filter((row: any) => {
+      const workTaskId = row.competence_definition?.work_task?.id;
+      if (!approvesAll && !approvedTaskIds.includes(workTaskId)) return false;
+      // All sections must be fully signed
+      const sections: any[] = row.section_signature ?? [];
+      return sections.every(
+        (s) => s.signed_by_trainee_id !== null && s.signed_by_supervisor_id !== null
+      );
+    })
+    .map(mapInstance);
+}
+
+// ——— Signing mutations ————————————————————————————————————————————————————
+
 export async function signAsTrainee(
   instanceId: string,
   signatureId: string,
@@ -225,14 +198,10 @@ export async function signAsTrainee(
     p_signature_id: signatureId,
     p_employee_id: employeeId,
   });
-  if (error) {
-    console.error("signAsTrainee error:", error.message);
-    return false;
-  }
+  if (error) { console.error("signAsTrainee error:", error.message); return false; }
   return true;
 }
 
-// Supervisor counter-signs a section (calls DB RPC)
 export async function signAsSupervisor(
   instanceId: string,
   signatureId: string,
@@ -242,36 +211,39 @@ export async function signAsSupervisor(
     p_signature_id: signatureId,
     p_supervisor_id: supervisorId,
   });
-  if (error) {
-    console.error("signAsSupervisor error:", error.message);
-    return false;
-  }
+  if (error) { console.error("signAsSupervisor error:", error.message); return false; }
   return true;
 }
 
-// Undo supervisor signature — direct update (no RPC needed for undo)
-// Only allowed before trainee has signed
 export async function unsignAsSupervisor(
   instanceId: string,
   signatureId: string
 ): Promise<boolean> {
   const { error } = await supabase
     .from("section_signature")
-    .update({
-      signed_by_supervisor_id: null,
-      signed_by_supervisor_at: null,
-    })
+    .update({ signed_by_supervisor_id: null, signed_by_supervisor_at: null })
     .eq("id", signatureId)
-    .is("signed_by_trainee_id", null); // safety: can't undo if trainee already signed
+    .is("signed_by_trainee_id", null);
 
-  if (error) {
-    console.error("unsignAsSupervisor error:", error.message);
-    return false;
-  }
+  if (error) { console.error("unsignAsSupervisor error:", error.message); return false; }
   return true;
 }
 
-// Final approval — calls DB RPC which also grants competence
+// Trainee final-signs the whole checklist.
+// Requires all sections to be signed by trainee first.
+export async function finalizeAsTrainee(
+  instanceId: string,
+  employeeId: string
+): Promise<boolean> {
+  const { error } = await supabase.rpc("finalize_checklist_as_trainee", {
+    p_instance_id: instanceId,
+    p_employee_id: employeeId,
+  });
+  if (error) { console.error("finalizeAsTrainee error:", error.message); return false; }
+  return true;
+}
+
+// Approver final-approves — sets status=completed and grants competence.
 export async function finalizeChecklist(
   instanceId: string,
   approverId: string
@@ -280,9 +252,6 @@ export async function finalizeChecklist(
     p_instance_id: instanceId,
     p_approver_id: approverId,
   });
-  if (error) {
-    console.error("finalizeChecklist error:", error.message);
-    return false;
-  }
+  if (error) { console.error("finalizeChecklist error:", error.message); return false; }
   return true;
 }

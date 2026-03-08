@@ -15,9 +15,15 @@ interface SectionRowProps {
 export function SectionRow({ section: s, mode, onSign, onUnsign }: SectionRowProps) {
   const [expanded, setExpanded] = useState(false);
 
-  const supOk = !!s.signed_by_supervisor_id;
+  const supOk     = !!s.signed_by_supervisor_id;
   const traineeOk = !!s.signed_by_trainee_id;
-  const canSign = mode === "trainee" && supOk && !traineeOk;
+
+  // Trainee can sign their section in any order relative to supervisor
+  const canSign = mode === "trainee" && !traineeOk;
+
+  const supervisorLabel = s.signed_by_supervisor_name
+    ? `${s.signed_by_supervisor_name} signerade`
+    : "Handledare signerade";
 
   return (
     <div className="bg-white rounded-[10px] border border-slate overflow-hidden mb-2">
@@ -61,8 +67,7 @@ export function SectionRow({ section: s, mode, onSign, onUnsign }: SectionRowPro
         <div
           className="border-t border-sand bg-cream"
           style={{
-            padding:
-              mode === "trainee" ? "10px 14px 12px" : "10px 16px 12px 60px",
+            padding: mode === "trainee" ? "10px 14px 12px" : "10px 16px 12px 60px",
           }}
         >
           <div style={mode === "trainee" ? { paddingLeft: 80 } : undefined}>
@@ -70,7 +75,7 @@ export function SectionRow({ section: s, mode, onSign, onUnsign }: SectionRowPro
 
             {supOk && (
               <p className="text-success text-xs mb-0.5">
-                Handledare signerade · {formatDate(s.signed_by_supervisor_at)}
+                {supervisorLabel} · {formatDate(s.signed_by_supervisor_at)}
               </p>
             )}
             {traineeOk && (

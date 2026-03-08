@@ -1,18 +1,14 @@
-"use client";
+﻿"use client";
 // app/(admin)/_components/sidebar/sidebar.tsx
 
 import { useEffect } from "react";
-import { useSidebar } from "@/lib/hooks/use-sidebar";
+import { useSidebarContext } from "@/lib/contexts/sidebar-context";
 import { SidebarLogo } from "./sidebar-logo";
 import { SidebarNav } from "./sidebar-nav";
 import { SidebarUser } from "./sidebar-user";
 
-const W_EXPANDED  = 220;
-const W_COLLAPSED = 56;
-
 export function Sidebar() {
-  const { collapsed, toggle, mounted } = useSidebar();
-  const width = mounted ? (collapsed ? W_COLLAPSED : W_EXPANDED) : W_EXPANDED;
+  const { collapsed, width, toggle } = useSidebarContext();
 
   useEffect(() => {
     document.documentElement.style.setProperty("--sidebar-w", `${width}px`);
@@ -27,10 +23,9 @@ export function Sidebar() {
         transition-[width] duration-[220ms] ease-[cubic-bezier(0.4,0,0.2,1)]
       "
     >
-      {/* Collapse toggle — sits outside the overflow-hidden inner wrapper */}
       <button
         onClick={toggle}
-        aria-label={collapsed ? "Expandera sidebar" : "Fäll ihop sidebar"}
+        aria-label={collapsed ? "Expandera" : "Minimera"}
         className="
           absolute top-[15px] -right-3 z-20
           w-6 h-6 bg-white border border-slate rounded-full
@@ -55,7 +50,6 @@ export function Sidebar() {
         </svg>
       </button>
 
-      {/* Inner wrapper clips the content (nav labels etc.) but not the toggle button */}
       <div className="flex flex-col flex-1 overflow-hidden">
         <SidebarLogo collapsed={collapsed} />
         <SidebarNav collapsed={collapsed} />

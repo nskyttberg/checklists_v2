@@ -28,6 +28,12 @@ const Icons = {
       <path d="M4.5 5.5h6M4.5 8.5h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   ),
+  methods: (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <circle cx="7.5" cy="7.5" r="6" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M7.5 4.5v3l2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
   licence: (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
       <rect x="1" y="4" width="13" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
@@ -43,7 +49,7 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ReactElement;
-  disabled?: boolean;   // ← explicit optional — fixes TS union error
+  disabled?: boolean;
 }
 
 interface NavSection {
@@ -60,6 +66,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: "Översikt",    href: "/admin",           icon: Icons.overview },
       { label: "Medarbetare", href: "/admin/staff",     icon: Icons.staff },
       { label: "Mallar",      href: "/admin/templates", icon: Icons.templates },
+      { label: "Metoder",     href: "/admin/methods",   icon: Icons.methods },
     ],
   },
   {

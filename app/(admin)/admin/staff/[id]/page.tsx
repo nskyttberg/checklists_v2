@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/user-context";
 import { useAdminNav } from "@/lib/contexts/admin-nav-context";
 import { getInitials } from "@/lib/ui/primitives";
+import { formatCompetence } from "@/lib/format";
 
 // -------------------------------------------------
 // Types
@@ -54,18 +55,6 @@ interface InstanceRow {
 // -------------------------------------------------
 // Helpers
 // -------------------------------------------------
-
-const COMPETENCE_TYPE_LABELS: Record<string, string> = {
-  examination:     "Undersökning",
-  reporting:       "Svar",
-  referral_review: "Remissgranskning",
-  delegation:      "Delegering",
-  remote_work:     "Distansarbete",
-};
-
-function competenceTypeLabel(type: string): string {
-  return COMPETENCE_TYPE_LABELS[type] || type;
-}
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
@@ -241,7 +230,6 @@ export default function StaffDetailPage() {
     });
 
     if (assignErr) {
-      // Map RPC exception messages to Swedish
       let msg = assignErr.message;
       if (msg.includes("No published template"))
         msg = "Ingen publicerad mall hittades för denna behörighet. Skapa och publicera en mall först.";
@@ -329,7 +317,6 @@ export default function StaffDetailPage() {
               <tr className="border-b border-slate bg-cream">
                 <th className="text-left px-4 py-3 font-medium text-petrol-80">Metod</th>
                 <th className="text-left px-4 py-3 font-medium text-petrol-80">Behörighet</th>
-                <th className="text-left px-4 py-3 font-medium text-petrol-80">Mall</th>
                 <th className="text-left px-4 py-3 font-medium text-petrol-80">Tilldelad</th>
                 <th className="text-left px-4 py-3 font-medium text-petrol-80">Status</th>
               </tr>
@@ -341,16 +328,11 @@ export default function StaffDetailPage() {
                     {inst.competence_definition?.work_task?.name}
                   </td>
                   <td className="px-4 py-3 text-petrol-80">
-                    <span className="text-petrol-60 text-xs">
-                      {competenceTypeLabel(inst.competence_definition?.competence_type)} ·{" "}
-                    </span>
-                    {inst.competence_definition?.display_name}
-                  </td>
-                  <td className="px-4 py-3 text-petrol-60">
-                    {inst.checklist_template?.name}
-                    <span className="ml-1 text-xs bg-petrol-20 text-petrol rounded-full px-1.5 py-0.5">
-                      v{inst.checklist_template?.version}
-                    </span>
+                    {formatCompetence(
+                      inst.competence_definition?.level,
+                      inst.competence_definition?.competence_type,
+                      inst.competence_definition?.display_name,
+                    )}
                   </td>
                   <td className="px-4 py-3 text-petrol-60">
                     {formatDate(inst.assigned_at)}
@@ -404,7 +386,7 @@ export default function StaffDetailPage() {
               </option>
               {filteredCompetences.map((cd) => (
                 <option key={cd.id} value={cd.id}>
-                  {competenceTypeLabel(cd.competence_type)} · {cd.display_name}
+                  {formatCompetence(cd.level, cd.competence_type, cd.display_name)}
                 </option>
               ))}
             </select>

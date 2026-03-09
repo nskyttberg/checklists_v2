@@ -1,20 +1,25 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { useUser } from "@/lib/user-context";
+import { formatCompetenceShort, formatDate } from "@/lib/format";
 
 // -------------------------------------------------
 // Types
 // -------------------------------------------------
+
+interface SectionSig {
+  signed_by_trainee_at: string | null;
+  signed_by_supervisor_at: string | null;
+}
 
 interface InstanceRow {
   id: string;
   status: string;
   assigned_at: string;
   employee: { id: string; name: string; site: string | null };
-  checklist_template: { id: string; name: string; version: number };
   competence_definition: {
     id: string;
     display_name: string;
@@ -22,25 +27,53 @@ interface InstanceRow {
     level: number;
     work_task: { id: string; name: string; category: string | null };
   };
+  section_signature: SectionSig[];
 }
 
 // -------------------------------------------------
 // Helpers
 // -------------------------------------------------
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("sv-SE");
-}
+function ProgressCell({ signatures }: { signatures: SectionSig[] }) {
+  const total  = signatures.length;
+  const signed = signatures.filter(
+    (s) => s.signed_by_trainee_at !== null && s.signed_by_supervisor_at !== null,
+  ).length;
 
-function competenceTypeLabel(type: string): string {
-  const map: Record<string, string> = {
-    examination:     "Undersökning",
-    reporting:       "Svar",
-    referral_review: "Remissgranskning",
-    delegation:      "Delegering",
-    remote_work:     "Distansarbete",
-  };
-  return map[type] || type;
+  if (total === 0) return <span className="text-petrol-40 text-xs">—</span>;
+
+  const pct      = (signed / total) * 100;
+  const complete = signed === total;
+
+  return (
+    <div className="flex items-center gap-2 min-w-[80px]">
+      <div
+        style={{
+          flex: 1,
+          height: 4,
+          borderRadius: 99,
+          backgroundColor: "var(--color-slate)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${pct}%`,
+            borderRadius: 99,
+            backgroundColor: complete ? "var(--color-success)" : "var(--color-petrol)",
+            transition: "width 0.3s ease",
+          }}
+        />
+      </div>
+      <span
+        className="text-xs font-semibold tabular-nums"
+        style={{ color: complete ? "var(--color-success)" : "var(--color-petrol-60)" }}
+      >
+        {signed}/{total}
+      </span>
+    </div>
+  );
 }
 
 // -------------------------------------------------
@@ -48,10 +81,10 @@ function competenceTypeLabel(type: string): string {
 // -------------------------------------------------
 
 export default function AdminOverview() {
-  const { currentUser } = useUser();
+  const router = useRouter();
   const [instances, setInstances] = useState<InstanceRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("");
+  const [loading, setLoading]     = useState(true);
+  const [filter, setFilter]       = useState("");
 
   useEffect(() => {
     async function fetchInstances() {
@@ -63,15 +96,15 @@ export default function AdminOverview() {
           status,
           assigned_at,
           employee:employee_id ( id, name, site ),
-          checklist_template:template_id ( id, name, version ),
           competence_definition:competence_definition_id (
             id,
             display_name,
             competence_type,
             level,
             work_task:work_task_id ( id, name, category )
-          )
-        `
+          ),
+          section_signature ( signed_by_trainee_at, signed_by_supervisor_at )
+        `,
         )
         .eq("status", "active")
         .order("assigned_at", { ascending: false });
@@ -92,8 +125,7 @@ export default function AdminOverview() {
     if (!lowerFilter) return true;
     return (
       inst.employee?.name?.toLowerCase().includes(lowerFilter) ||
-      inst.competence_definition?.work_task?.name?.toLowerCase().includes(lowerFilter) ||
-      inst.checklist_template?.name?.toLowerCase().includes(lowerFilter)
+      inst.competence_definition?.work_task?.name?.toLowerCase().includes(lowerFilter)
     );
   });
 
@@ -105,7 +137,7 @@ export default function AdminOverview() {
     );
   }
 
-  if (!loading && instances.length === 0) {
+  if (instances.length === 0) {
     return (
       <div className="text-center py-16">
         <div className="bg-white rounded-xl border border-slate p-10 max-w-lg mx-auto">
@@ -144,14 +176,15 @@ export default function AdminOverview() {
               <th className="text-left px-4 py-3 font-medium text-petrol-80">Medarbetare</th>
               <th className="text-left px-4 py-3 font-medium text-petrol-80">Metod</th>
               <th className="text-left px-4 py-3 font-medium text-petrol-80">Behörighet</th>
-              <th className="text-left px-4 py-3 font-medium text-petrol-80">Mall</th>
               <th className="text-left px-4 py-3 font-medium text-petrol-80">Tilldelad</th>
+              <th className="text-left px-4 py-3 font-medium text-petrol-80">Framsteg</th>
             </tr>
           </thead>
           <tbody>
             {filtered.map((inst) => (
               <tr
                 key={inst.id}
+                onClick={() => router.push(`/admin/staff/${inst.employee?.id}`)}
                 className="border-b border-slate/50 hover:bg-cream transition-colors cursor-pointer"
               >
                 <td className="px-4 py-3 text-petrol font-medium">
@@ -166,20 +199,16 @@ export default function AdminOverview() {
                   {inst.competence_definition?.work_task?.name}
                 </td>
                 <td className="px-4 py-3 text-petrol-80">
-                  <span className="text-petrol-60 text-xs">
-                    {competenceTypeLabel(inst.competence_definition?.competence_type)}
-                    {" · "}
-                  </span>
-                  {inst.competence_definition?.display_name}
-                </td>
-                <td className="px-4 py-3 text-petrol-60">
-                  {inst.checklist_template?.name}
-                  <span className="ml-1 text-xs bg-petrol-20 text-petrol rounded-full px-1.5 py-0.5">
-                    v{inst.checklist_template?.version}
-                  </span>
+                  {formatCompetenceShort(
+                    inst.competence_definition?.level,
+                    inst.competence_definition?.competence_type,
+                  )}
                 </td>
                 <td className="px-4 py-3 text-petrol-60">
                   {formatDate(inst.assigned_at)}
+                </td>
+                <td className="px-4 py-3">
+                  <ProgressCell signatures={inst.section_signature ?? []} />
                 </td>
               </tr>
             ))}

@@ -3,11 +3,10 @@
 // Reusable competence picker. Two variants:
 //   mode="single"  — one selection, returns CompetenceSelection | null via onChange
 //   mode="multi"   — multiple selections with chips, returns CompetenceSelection[] via onChange
-//
-// Reads: work_task + competence_definition from schema v3
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { formatCompetence, formatCompetenceShort } from "@/lib/format";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -34,22 +33,7 @@ interface CompetenceDefinition {
   level: number;
 }
 
-// ── Label helpers ─────────────────────────────────────────────────────────────
-
-const COMPETENCE_TYPE_LABELS: Record<string, string> = {
-  examination:     "Undersökningsbehörighet",
-  reporting:       "Svarsbehörighet",
-  referral_review: "Remissgranskning",
-  delegation:      "Delegering",
-  remote_work:     "Distansarbete",
-};
-
-function competenceLabel(cd: CompetenceDefinition): string {
-  const typeLabel = COMPETENCE_TYPE_LABELS[cd.competence_type] ?? cd.competence_type;
-  return `${typeLabel} · ${cd.display_name}`;
-}
-
-// ── Single-select variant ─────────────────────────────────────────────────────
+// ── Variant props ─────────────────────────────────────────────────────────────
 
 interface SinglePickerProps {
   mode: "single";
@@ -57,8 +41,6 @@ interface SinglePickerProps {
   onChange: (value: CompetenceSelection | null) => void;
   label?: string;
 }
-
-// ── Multi-select variant ──────────────────────────────────────────────────────
 
 interface MultiPickerProps {
   mode: "multi";
@@ -80,7 +62,6 @@ export function CompetencePicker(props: CompetencePickerProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load work tasks on mount
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -89,37 +70,27 @@ export function CompetencePicker(props: CompetencePickerProps) {
         .select("id, name, category")
         .eq("active", true)
         .order("name");
-
-      if (error) {
-        setError("Kunde inte ladda metoder");
-      } else {
-        setWorkTasks(data ?? []);
-      }
+      if (error) setError("Kunde inte ladda metoder");
+      else setWorkTasks(data ?? []);
       setLoading(false);
     }
     load();
   }, []);
 
-  // Load competence definitions when work task is selected
   useEffect(() => {
-    if (!selectedTaskId) {
-      setDefinitions([]);
-      return;
-    }
+    if (!selectedTaskId) { setDefinitions([]); return; }
     async function load() {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("competence_definition")
         .select("id, work_task_id, display_name, competence_type, level")
         .eq("work_task_id", selectedTaskId)
         .order("competence_type")
         .order("level");
-
-      if (!error) setDefinitions(data ?? []);
+      setDefinitions(data ?? []);
     }
     load();
   }, [selectedTaskId]);
 
-  // Build a CompetenceSelection from a definition id
   function buildSelection(defId: string): CompetenceSelection | null {
     const cd = definitions.find((d) => d.id === defId);
     const wt = workTasks.find((w) => w.id === selectedTaskId);
@@ -138,15 +109,11 @@ export function CompetencePicker(props: CompetencePickerProps) {
     if (!defId) return;
     const selection = buildSelection(defId);
     if (!selection) return;
-
     if (mode === "single") {
       (props as SinglePickerProps).onChange(selection);
     } else {
       const current = (props as MultiPickerProps).value;
-      const alreadyAdded = current.some(
-        (s) => s.competence_definition_id === defId
-      );
-      if (!alreadyAdded) {
+      if (!current.some((s) => s.competence_definition_id === defId)) {
         (props as MultiPickerProps).onChange([...current, selection]);
       }
     }
@@ -181,13 +148,10 @@ export function CompetencePicker(props: CompetencePickerProps) {
 
   return (
     <div className="space-y-3">
-      {label && (
-        <p className="text-[13px] font-medium text-petrol">{label}</p>
-      )}
+      {label && <p className="text-[13px] font-medium text-petrol">{label}</p>}
 
-      {/* Row: work task + competence definition */}
       <div className="flex gap-3">
-        {/* Work task dropdown */}
+        {/* Work task */}
         <select
           value={selectedTaskId}
           onChange={(e) => {
@@ -198,55 +162,45 @@ export function CompetencePicker(props: CompetencePickerProps) {
         >
           <option value="">Välj metod...</option>
           {workTasks.map((wt) => (
-            <option key={wt.id} value={wt.id}>
-              {wt.name}
-            </option>
+            <option key={wt.id} value={wt.id}>{wt.name}</option>
           ))}
         </select>
 
-        {/* Competence definition dropdown */}
+        {/* Competence definition — Nivå N · Typ · Namn */}
         <select
-          value={
-            mode === "single" && singleValue
-              ? singleValue.competence_definition_id
-              : ""
-          }
+          value={mode === "single" && singleValue ? singleValue.competence_definition_id : ""}
           onChange={(e) => handleDefinitionChange(e.target.value)}
           disabled={!selectedTaskId || definitions.length === 0}
           className="flex-1 h-10 rounded-lg border border-slate bg-white px-3 text-[13px] text-petrol focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <option value="">
-            {!selectedTaskId
-              ? "Välj metod först"
-              : definitions.length === 0
-              ? "Inga behörigheter hittades"
-              : "Välj behörighet..."}
+            {!selectedTaskId ? "Välj metod först" : definitions.length === 0 ? "Inga behörigheter hittades" : "Välj behörighet..."}
           </option>
           {definitions.map((cd) => (
             <option key={cd.id} value={cd.id}>
-              {competenceLabel(cd)}
+              {formatCompetence(cd.level, cd.competence_type, cd.display_name)}
             </option>
           ))}
         </select>
       </div>
 
-      {/* Single-select: show selected as a small tag */}
+      {/* Single chip — Metod · Nivå N · Typ */}
       {mode === "single" && singleValue && (
         <div className="flex items-center gap-2">
           <Chip
-            label={`${singleValue.work_task_name} · ${COMPETENCE_TYPE_LABELS[singleValue.competence_type] ?? singleValue.competence_type}`}
+            label={`${singleValue.work_task_name} · ${formatCompetenceShort(singleValue.level, singleValue.competence_type)}`}
             onRemove={() => (props as SinglePickerProps).onChange(null)}
           />
         </div>
       )}
 
-      {/* Multi-select: chips */}
+      {/* Multi chips — Metod · Nivå N · Typ */}
       {mode === "multi" && multiValue.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {multiValue.map((s) => (
             <Chip
               key={s.competence_definition_id}
-              label={`${s.work_task_name} · ${COMPETENCE_TYPE_LABELS[s.competence_type] ?? s.competence_type}`}
+              label={`${s.work_task_name} · ${formatCompetenceShort(s.level, s.competence_type)}`}
               onRemove={() => removeChip(s.competence_definition_id)}
             />
           ))}
@@ -264,12 +218,10 @@ function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
       {label}
       <button
         onClick={onRemove}
-        className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-petrol/20 transition-colors"
+        className="hover:text-petrol-80 transition-colors leading-none"
         aria-label="Ta bort"
       >
-        <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-          <path d="M1 1l6 6M7 1L1 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-        </svg>
+        ×
       </button>
     </span>
   );

@@ -262,7 +262,7 @@ export async function renewMethod(
   // delegation = 12 months, everything else = 24 months (from competence_definition.validity_months)
   const workTaskId = levels[0].grant.work_task_id;
   const defs = await fetchCompetenceDefinitionsForTask(workTaskId);
-  const defMap = new Map(defs.map(d => (`${d.competence_type}|${d.level}`, d)));
+  const defMap = new Map(defs.map(d => [`${d.competence_type}|${d.level}`, d] as const));
 
   const { error: revokeError } = await supabase
     .from("employee_competence")

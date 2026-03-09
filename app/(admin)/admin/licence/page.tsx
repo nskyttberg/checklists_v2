@@ -542,7 +542,6 @@ export default function LicencePage() {
   const summary = {
     total:    allLevels.length,
     valid:    allLevels.filter(l => l.status === "valid").length,
-    review:   allLevels.filter(l => l.status === "review").length,
     expiring: allLevels.filter(l => l.status === "expiring").length,
     expired:  allLevels.filter(l => l.status === "expired").length,
   };
@@ -583,11 +582,10 @@ export default function LicencePage() {
 
       {/* Summary cards */}
       <div className="flex gap-2.5 mb-5 flex-wrap">
-        <SummaryCard label="Aktiva nivåer"   value={summary.total}    colorClass="text-petrol"    bgClass="bg-white" />
-        <SummaryCard label="Giltiga"         value={summary.valid}    colorClass="text-success"   bgClass="bg-success-light" />
-        <SummaryCard label="Kräver kontroll" value={summary.review}   colorClass="text-warning"   bgClass="bg-warning-light" />
-        <SummaryCard label="Löper ut snart"  value={summary.expiring} colorClass="text-accent"    bgClass="bg-accent/10" />
-        <SummaryCard label="Utgångna"        value={summary.expired}  colorClass="text-red-700"   bgClass="bg-red-50" />
+        <SummaryCard label="Aktiva nivåer"  value={summary.total}    colorClass="text-petrol"  bgClass="bg-white" />
+        <SummaryCard label="Giltiga"        value={summary.valid}    colorClass="text-success" bgClass="bg-success-light" />
+        <SummaryCard label="Uppmärksamhet"  value={summary.expiring} colorClass="text-accent"  bgClass="bg-accent/10" />
+        <SummaryCard label="Utgångna"       value={summary.expired}  colorClass="text-red-700" bgClass="bg-red-50" />
       </div>
 
       {/* Filters */}

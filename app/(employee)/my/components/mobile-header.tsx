@@ -1,41 +1,21 @@
 "use client";
 // app/(employee)/my/components/mobile-header.tsx
-//
-// Design decisions:
-// - Petrol background, white text — brand anchor
-// - User's first name prominent — personal, direct
-// - Admin link visible only when is_admin = true — contextual, not structural
-// - Dev user switcher: tap on name/chevron to open — hidden by default
-// - No role selector — auth handles identity in production
-// - Safe area inset top — iOS PWA compatible
-// - 56px header height — compact, touch targets 44px min
 
 import { useState } from "react";
-
 import { useUser } from "@/lib/user-context";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { FeedbackModal } from "@/lib/ui/feedback-modal";
 
+// ── Icons ─────────────────────────────────────────────────────────────────────
 
 function ChevronDownIcon({ open }: { open: boolean }) {
   return (
     <svg
-      width="14"
-      height="14"
-      viewBox="0 0 14 14"
-      fill="none"
-      style={{
-        transition: "transform 0.15s ease",
-        transform: open ? "rotate(180deg)" : "rotate(0deg)",
-      }}
+      width="14" height="14" viewBox="0 0 14 14" fill="none"
+      style={{ transition: "transform 0.15s ease", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
     >
-      <path
-        d="M3 5L7 9L11 5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M3 5L7 9L11 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -53,21 +33,27 @@ function AdminIcon() {
 function CheckIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path
-        d="M2.5 7.5L5.5 10.5L11.5 3.5"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M2.5 7.5L5.5 10.5L11.5 3.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
+function FeedbackIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M7 1a6 6 0 1 1 0 12A6 6 0 0 1 7 1Z" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M7 6v4M7 4.5h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export function MobileHeader() {
   const { currentUser, allUsers, switchUser } = useUser();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen]               = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   if (!currentUser) return null;
 
@@ -96,6 +82,37 @@ export function MobileHeader() {
           {/* Right side controls */}
           <div className="flex items-center" style={{ gap: 4 }}>
 
+            {/* Feedback button — always visible */}
+            <button
+              onClick={() => setShowFeedback(true)}
+              className="flex items-center gap-1.5"
+              style={{
+                color: "rgba(255,255,255,0.55)",
+                fontSize: 12,
+                fontWeight: 500,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                minHeight: 44,
+                padding: "0 8px",
+                WebkitTapHighlightColor: "transparent",
+              }}
+              aria-label="Förbättringsförslag"
+            >
+              <FeedbackIcon />
+              <span>Feedback</span>
+            </button>
+
+            {/* Separator */}
+            <div
+              style={{
+                width: 1,
+                height: 14,
+                backgroundColor: "rgba(255,255,255,0.15)",
+                margin: "0 4px",
+              }}
+            />
+
             {/* Admin shortcut — only for admins */}
             {currentUser.is_admin && (
               <button
@@ -119,7 +136,7 @@ export function MobileHeader() {
               </button>
             )}
 
-            {/* Separator */}
+            {/* Separator (only when admin) */}
             {currentUser.is_admin && (
               <div
                 style={{
@@ -173,88 +190,46 @@ export function MobileHeader() {
             }}
           >
             <div className="max-w-[480px] mx-auto">
-              {/* Label */}
               <div
                 className="px-5"
-                style={{
-                  paddingTop: 12,
-                  paddingBottom: 8,
-                  borderBottom: "1px solid var(--color-slate)",
-                }}
+                style={{ paddingTop: 12, paddingBottom: 8, borderBottom: "1px solid var(--color-slate)" }}
               >
-                <p
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    color: "var(--color-petrol-60)",
-                  }}
-                >
+                <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-petrol-60)" }}>
                   Byt testanvändare
                 </p>
               </div>
 
-              {/* Users */}
               {allUsers.map((u) => {
                 const isActive = u.id === currentUser.id;
                 return (
                   <button
                     key={u.id}
-                    onClick={() => {
-                      switchUser(u.id);
-                      setOpen(false);
-                    }}
+                    onClick={() => { switchUser(u.id); setOpen(false); }}
                     className="w-full flex items-center justify-between"
-                    style={{
-                      padding: "11px 20px",
-                      minHeight: 50,
-                      background: isActive ? "var(--color-sand)" : "white",
-                      border: "none",
-                      borderBottom: "1px solid var(--color-slate)",
-                      cursor: "pointer",
-                      WebkitTapHighlightColor: "transparent",
-                    }}
+                    style={{ padding: "11px 20px", borderBottom: "1px solid var(--color-slate)", background: "none", border: "none", cursor: "pointer", WebkitTapHighlightColor: "transparent" }}
                   >
-                    <div className="text-left">
-                      <p
-                        style={{
-                          fontSize: 14,
-                          fontWeight: isActive ? 600 : 500,
-                          color: "var(--color-petrol)",
-                        }}
-                      >
-                        {u.name}
-                      </p>
-                      <p
-                        style={{
-                          fontSize: 12,
-                          color: "var(--color-petrol-60)",
-                          marginTop: 1,
-                        }}
-                      >
-                        {u.is_admin ? "Admin" : "Medarbetare"}
-                        {u.site ? ` · ${u.site}` : ""}
-                      </p>
-                    </div>
+                    <span style={{ fontSize: 14, color: isActive ? "var(--color-petrol)" : "var(--color-petrol-80)", fontWeight: isActive ? 600 : 400 }}>
+                      {u.name}
+                    </span>
                     {isActive && (
-                      <span style={{ color: "var(--color-petrol-80)" }}>
+                      <span style={{ color: "var(--color-success)" }}>
                         <CheckIcon />
                       </span>
                     )}
                   </button>
                 );
               })}
-
-              {/* Dev note */}
-              <div className="px-5 py-2.5">
-                <p style={{ fontSize: 11, color: "var(--color-petrol-60)" }}>
-                  Användarbyte ersätts av inloggning vid lansering
-                </p>
-              </div>
             </div>
           </div>
         </>
+      )}
+
+      {/* Feedback modal */}
+      {showFeedback && (
+        <FeedbackModal
+          employeeId={currentUser.id}
+          onClose={() => setShowFeedback(false)}
+        />
       )}
     </>
   );

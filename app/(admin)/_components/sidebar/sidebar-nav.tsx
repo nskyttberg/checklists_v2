@@ -4,8 +4,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
-
 const Icons = {
   overview: (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
@@ -30,8 +28,7 @@ const Icons = {
   ),
   methods: (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-      <circle cx="7.5" cy="7.5" r="6" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M7.5 4.5v3l2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M2 4h11M2 8h7M2 12h9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   ),
   licence: (
@@ -42,8 +39,6 @@ const Icons = {
     </svg>
   ),
 };
-
-// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface NavItem {
   label: string;
@@ -57,8 +52,6 @@ interface NavSection {
   items: NavItem[];
 }
 
-// ── Nav definition ────────────────────────────────────────────────────────────
-
 const NAV_SECTIONS: NavSection[] = [
   {
     label: "Checklistor",
@@ -70,18 +63,15 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    label: "Kommande",
+    label: "Körkort",
     items: [
-      { label: "Körkort", href: "/admin/licence", icon: Icons.licence, disabled: true },
+      { label: "Körkort", href: "/admin/licence", icon: Icons.licence },
     ],
   },
 ];
 
-// ── Component ────────────────────────────────────────────────────────────────
-
 export function SidebarNav({ collapsed }: { collapsed: boolean }) {
   const pathname = usePathname();
-
   const isActive = (href: string) =>
     href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
 
@@ -102,13 +92,8 @@ export function SidebarNav({ collapsed }: { collapsed: boolean }) {
 
             if (item.disabled) {
               return (
-                <div
-                  key={item.href}
-                  className="relative flex items-center gap-2.5 mx-1.5 px-2.5 h-[38px] rounded-lg opacity-40 cursor-not-allowed text-petrol-40"
-                >
-                  <span className="flex-shrink-0 w-[18px] flex items-center justify-center">
-                    {item.icon}
-                  </span>
+                <div key={item.href} className="relative flex items-center gap-2.5 mx-1.5 px-2.5 h-[38px] rounded-lg opacity-40 cursor-not-allowed text-petrol-40">
+                  <span className="flex-shrink-0 w-[18px] flex items-center justify-center">{item.icon}</span>
                   {!collapsed && (
                     <span className="text-[13.5px] whitespace-nowrap">
                       {item.label}
@@ -124,8 +109,7 @@ export function SidebarNav({ collapsed }: { collapsed: boolean }) {
                 key={item.href}
                 href={item.href}
                 className={`
-                  relative flex items-center gap-2.5
-                  mx-1.5 px-2.5 h-[38px] rounded-lg
+                  relative flex items-center gap-2.5 mx-1.5 px-2.5 h-[38px] rounded-lg
                   transition-colors duration-100 group
                   ${active
                     ? "bg-accent/[0.14] text-accent"
@@ -133,20 +117,11 @@ export function SidebarNav({ collapsed }: { collapsed: boolean }) {
                   }
                 `}
               >
-                {active && (
-                  <span className="absolute left-0 top-2 bottom-2 w-[3px] bg-accent rounded-r-sm -ml-1.5" />
-                )}
-                <span className="flex-shrink-0 w-[18px] flex items-center justify-center">
-                  {item.icon}
-                </span>
-                <span
-                  className={`text-[13.5px] whitespace-nowrap transition-opacity duration-150 ${
-                    collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"
-                  }`}
-                >
+                {active && <span className="absolute left-0 top-2 bottom-2 w-[3px] bg-accent rounded-r-sm -ml-1.5" />}
+                <span className="flex-shrink-0 w-[18px] flex items-center justify-center">{item.icon}</span>
+                <span className={`text-[13.5px] whitespace-nowrap transition-opacity duration-150 ${collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"}`}>
                   {item.label}
                 </span>
-
                 {collapsed && (
                   <span className="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-petrol-80 text-white text-xs px-2.5 py-1 rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-100 shadow-lg z-50">
                     {item.label}

@@ -1,4 +1,4 @@
-﻿export type EmployeeStatus = "active" | "inactive" | "temporary_inactive";
+export type EmployeeStatus = "active" | "inactive" | "temporary_inactive";
 
 export interface Employee {
   id: string;
@@ -8,4 +8,5 @@ export interface Employee {
   status: EmployeeStatus;
   auth_user_id: string | null;
   created_at: string;
+  has_admin_access?: boolean;
 }

@@ -186,7 +186,7 @@ export function SidebarUser({ collapsed }: { collapsed: boolean }) {
           <div className={`overflow-hidden transition-opacity duration-150 ${collapsed ? "opacity-0 w-0" : "opacity-100"}`}>
             <div className="text-[13px] font-semibold text-white whitespace-nowrap">{currentUser.name}</div>
             <div className="text-[11px] text-petrol-60 whitespace-nowrap">
-              {currentUser.is_admin ? "Administratör" : "Medarbetare"}
+              {currentUser.has_admin_access ? "Administratör" : "Medarbetare"}
             </div>
           </div>
         </div>

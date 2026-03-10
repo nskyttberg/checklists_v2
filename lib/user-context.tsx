@@ -1,7 +1,6 @@
 "use client";
 // lib/user-context.tsx
 // Dev-only user switcher. Replaced by real auth at launch.
-// Reads from employee table in schema v3.
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
@@ -24,29 +23,44 @@ const UserContext = createContext<UserContextValue>({
 const SESSION_KEY = "dev_current_user";
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [allUsers, setAllUsers] = useState<Employee[]>([]);
+  const [allUsers, setAllUsers]       = useState<Employee[]>([]);
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]         = useState(true);
 
   useEffect(() => {
     async function load() {
-      const { data, error } = await supabase
+      const { data: empData, error } = await supabase
         .from("employee")
-        .select("*")
-        .eq("active", true)
+        .select("id, name, email, site, status, auth_user_id, created_at")
+        .neq("status", "inactive")
         .order("name");
 
-      if (error || !data) {
+      if (error || !empData) {
         console.error("Failed to load employees:", error);
         setLoading(false);
         return;
       }
 
-      setAllUsers(data);
+      // Fetch all active roles — any role grants has_admin_access
+      const { data: roleData } = await supabase
+        .from("employee_role")
+        .select("employee_id, role")
+        .is("revoked_at", null);
+
+      const employeesWithRole = new Set(
+        (roleData ?? []).map(r => r.employee_id)
+      );
+
+      const employees: Employee[] = empData.map(emp => ({
+        ...emp,
+        has_admin_access: employeesWithRole.has(emp.id),
+      })) as Employee[];
+
+      setAllUsers(employees);
 
       const savedId = sessionStorage.getItem(SESSION_KEY);
-      const saved = savedId ? data.find((e) => e.id === savedId) : null;
-      setCurrentUser(saved ?? data[0] ?? null);
+      const saved   = savedId ? employees.find(e => e.id === savedId) : null;
+      setCurrentUser(saved ?? employees[0] ?? null);
       setLoading(false);
     }
 
@@ -54,7 +68,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, []);
 
   function switchUser(id: string) {
-    const user = allUsers.find((e) => e.id === id);
+    const user = allUsers.find(e => e.id === id);
     if (!user) return;
     sessionStorage.setItem(SESSION_KEY, id);
     setCurrentUser(user);

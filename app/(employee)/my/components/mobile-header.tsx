@@ -220,7 +220,7 @@ export function MobileHeader() {
             <div style={{ width: 1, height: 14, backgroundColor: "rgba(255,255,255,0.15)", margin: "0 4px" }} />
 
             {/* Admin shortcut */}
-            {currentUser.is_admin && (
+            {currentUser.has_admin_access && (
               <button
                 onClick={() => router.push("/admin")}
                 className="flex items-center gap-1.5"
@@ -242,7 +242,7 @@ export function MobileHeader() {
               </button>
             )}
 
-            {currentUser.is_admin && (
+            {currentUser.has_admin_access && (
               <div style={{ width: 1, height: 14, backgroundColor: "rgba(255,255,255,0.15)", margin: "0 4px" }} />
             )}
 

@@ -1,10 +1,11 @@
-﻿export interface Employee {
+﻿export type EmployeeStatus = "active" | "inactive" | "temporary_inactive";
+
+export interface Employee {
   id: string;
   name: string;
   email: string;
   site: string | null;
-  is_admin: boolean;
+  status: EmployeeStatus;
   auth_user_id: string | null;
-  active: boolean;
   created_at: string;
 }

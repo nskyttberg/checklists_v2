@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -636,7 +636,7 @@ export default function StaffDetailPage() {
                       {inst.competence_definition.work_task?.name ?? "—"}
                     </td>
                     <td className="px-3 py-3 text-sm text-petrol">
-                      {formatCompetence(inst.competence_definition)}
+                      {formatCompetence(inst.competence_definition.level, inst.competence_definition.competence_type, inst.competence_definition.display_name)}
                     </td>
                     <td className="px-3 py-3 text-sm text-petrol-60">
                       {inst.checklist_template.name} v{inst.checklist_template.version}

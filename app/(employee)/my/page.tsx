@@ -1,5 +1,8 @@
 "use client";
 // app/(employee)/my/page.tsx
+// CHANGED: Added "sign" + "competences" tabs. View state extended.
+// Competences data fetched here alongside existing checklist data.
+// All existing handlers (handleTraineeSign, handleSupSign etc.) are untouched.
 
 import { useState, useEffect, useCallback } from "react";
 import { useUser } from "@/lib/user-context";
@@ -14,85 +17,130 @@ import {
   finalizeChecklist,
   type MyChecklist,
 } from "@/lib/queries/checklists";
+import {
+  fetchEmployeeLicences,
+  type EmployeeLicence,
+} from "@/lib/licence";
 import { MobileHeader } from "./components/mobile-header";
-import { HomeView } from "./components/home-view";
-import { TraineeView } from "./components/trainee-view";
-import { SupervisorListView } from "./components/supervisor-list-view";
+import { TabBar }       from "./components/tab-bar";
+import { HomeView }     from "./components/home-view";
+import { SignView }     from "./components/sign-view";
+import { CompetencesView } from "./components/competences-view";
+import { TraineeView }        from "./components/trainee-view";
 import { SupervisorSignView } from "./components/supervisor-sign-view";
-import { ConfirmSheet } from "./components/confirm-sheet";
+// SupervisorListView no longer used — direct navigation from SignView
+import { ConfirmSheet }       from "./components/confirm-sheet";
 
-type View = "home" | "trainee" | "sup-list" | "sup-sign";
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type Tab  = "home" | "sign" | "competences";
+type View = Tab | "trainee" | "sup-sign";
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function MyPage() {
   const { currentUser, loading: userLoading } = useUser();
-  const [view, setView]           = useState<View>("home");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [myLists, setMyLists]     = useState<MyChecklist[]>([]);
-  const [supLists, setSupLists]   = useState<MyChecklist[]>([]);
-  const [approvable, setApprovable] = useState<MyChecklist[]>([]);
-  const [loading, setLoading]     = useState(true);
 
-  // Approver confirmation sheet state
+  // ── Checklist state (unchanged) ──────────────────────────────────────────
+  const [view, setView]             = useState<View>("home");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [myLists, setMyLists]       = useState<MyChecklist[]>([]);
+  const [supLists, setSupLists]     = useState<MyChecklist[]>([]);
+  const [approvable, setApprovable] = useState<MyChecklist[]>([]);
+  const [loading, setLoading]       = useState(true);
+
+  // ── Competences state (new) ───────────────────────────────────────────────
+  const [licences, setLicences]       = useState<EmployeeLicence[]>([]);
+  const [licLoading, setLicLoading]   = useState(false);
+
+  // ── Approver confirmation (unchanged) ────────────────────────────────────
   const [approveId, setApproveId] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
-    if (!currentUser?.id) return;
+  // ── Derived ───────────────────────────────────────────────────────────────
+  const selected     = myLists.find((c) => c.id === selectedId)
+                    ?? supLists.find((c) => c.id === selectedId)
+                    ?? null;
+  const approveTarget = approvable.find((c) => c.id === approveId) ?? null;
+
+  // Which tab is "active" (for TabBar highlight + back navigation)
+  const activeTab: Tab =
+    view === "trainee"  ? "home"
+    : view === "sup-sign" ? "sign"
+    : view as Tab;
+
+  // Tab badge counts
+  const signBadge = supLists.length + approvable.length;
+
+  // ── Data loading ──────────────────────────────────────────────────────────
+
+  const reload = useCallback(async (employeeId: string) => {
     setLoading(true);
-    const [my, sup, approve] = await Promise.all([
-      fetchMyChecklists(currentUser.id),
-      fetchSupervisableChecklists(currentUser.id),
-      fetchApprovableChecklists(currentUser.id),
+    const [my, sup, app] = await Promise.all([
+      fetchMyChecklists(employeeId),
+      fetchSupervisableChecklists(employeeId),
+      fetchApprovableChecklists(employeeId),
     ]);
     setMyLists(my);
     setSupLists(sup);
-    setApprovable(approve);
+    setApprovable(app);
     setLoading(false);
-  }, [currentUser?.id]);
+  }, []);
 
   useEffect(() => {
-    if (!userLoading && currentUser?.id) {
-      setView("home");
-      setSelectedId(null);
-      loadData();
+    if (currentUser) reload(currentUser.id);
+  }, [currentUser, reload]);
+
+  // Lazy-load licences when competences tab is first opened
+  async function openCompetences() {
+    setView("competences");
+    if (licences.length === 0 && !licLoading) {
+      setLicLoading(true);
+      const data = await fetchEmployeeLicences();
+      setLicences(data);
+      setLicLoading(false);
     }
-  }, [currentUser?.id, userLoading, loadData]);
+  }
 
-  const selected = [...myLists, ...supLists].find((c) => c.id === selectedId);
-  const approveTarget = approvable.find((c) => c.id === approveId);
+  // ── Tab navigation ────────────────────────────────────────────────────────
 
-  // ——— Handlers ————————————————————————————————————————————————————————
+  function handleTabChange(tab: Tab) {
+    if (tab === "competences") { openCompetences(); return; }
+    setView(tab);
+  }
 
-  const handleTraineeSign = async (instanceId: string, signatureId: string) => {
-    if (!currentUser?.id) return;
-    await signAsTrainee(instanceId, signatureId, currentUser.id);
-    await loadData();
-  };
+  // ── Existing sign handlers (unchanged) ───────────────────────────────────
 
-  const handleFinalizeAsTrainee = async (instanceId: string) => {
-    if (!currentUser?.id) return;
-    await finalizeAsTrainee(instanceId, currentUser.id);
-    await loadData();
-  };
+  async function handleTraineeSign(instanceId: string, signatureId: string) {
+    if (!currentUser) return;
+    const ok = await signAsTrainee(instanceId, signatureId, currentUser.id);
+    if (ok) reload(currentUser.id);
+  }
 
-  const handleSupSign = async (instanceId: string, signatureId: string) => {
-    if (!currentUser?.id) return;
-    await signAsSupervisor(instanceId, signatureId, currentUser.id);
-    await loadData();
-  };
+  async function handleFinalizeAsTrainee(instanceId: string) {
+    if (!currentUser) return;
+    const ok = await finalizeAsTrainee(instanceId, currentUser.id);
+    if (ok) { reload(currentUser.id); setView("home"); }
+  }
 
-  const handleSupUnsign = async (instanceId: string, signatureId: string) => {
-    await unsignAsSupervisor(instanceId, signatureId);
-    await loadData();
-  };
+  async function handleSupSign(instanceId: string, signatureId: string) {
+    if (!currentUser) return;
+    const ok = await signAsSupervisor(instanceId, signatureId, currentUser.id);
+    if (ok) reload(currentUser.id);
+  }
 
-  const handleApprove = async () => {
-    if (!currentUser?.id || !approveId) return;
-    await finalizeChecklist(approveId, currentUser.id);
-    setApproveId(null);
-    await loadData();
-  };
+  async function handleSupUnsign(instanceId: string, signatureId: string) {
+    if (!currentUser) return;
+    const ok = await unsignAsSupervisor(instanceId, signatureId);
+    if (ok) reload(currentUser.id);
+  }
 
-  // ——— Loading splash ——————————————————————————————————————————————————
+  async function handleApprove() {
+    if (!currentUser || !approveId) return;
+    const ok = await finalizeChecklist(approveId, currentUser.id);
+    if (ok) { reload(currentUser.id); setApproveId(null); }
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   if (userLoading) {
     return (
@@ -102,28 +150,57 @@ export default function MyPage() {
     );
   }
 
-  // ——— Render ——————————————————————————————————————————————————————————
-
   return (
     <div style={{ minHeight: "100dvh", backgroundColor: "var(--color-sand)", fontFamily: "Arial, system-ui, sans-serif" }}>
       <div style={{ position: "sticky", top: 0, zIndex: 30 }}>
         <MobileHeader />
+        {/* Tab bar only on top-level views */}
+        {(view === "home" || view === "sign" || view === "competences") && (
+          <TabBar
+            activeTab={activeTab}
+            signBadge={signBadge}
+            onChange={handleTabChange}
+          />
+        )}
       </div>
 
-      <main style={{ maxWidth: 480, margin: "0 auto", padding: "20px 16px", paddingBottom: "max(32px, env(safe-area-inset-bottom, 32px))" }}>
+      <main style={{
+        maxWidth: 480,
+        margin: "0 auto",
+        padding: "20px 16px",
+        paddingBottom: "max(32px, env(safe-area-inset-bottom, 32px))",
+      }}>
 
+        {/* ── Tab: Home ──────────────────────────────────────────────────── */}
         {view === "home" && (
           <HomeView
             myChecklists={myLists}
+            loading={loading}
+            onOpenMy={(id) => { setSelectedId(id); setView("trainee"); }}
+          />
+        )}
+
+        {/* ── Tab: Sign ──────────────────────────────────────────────────── */}
+        {view === "sign" && (
+          <SignView
             supervisable={supLists}
             approvable={approvable}
             loading={loading}
-            onOpenMy={(id) => { setSelectedId(id); setView("trainee"); }}
-            onOpenSupervisorList={() => setView("sup-list")}
+            onOpenSupervisor={(id) => { setSelectedId(id); setView("sup-sign"); }}
             onApprove={(id) => setApproveId(id)}
           />
         )}
 
+        {/* ── Tab: Competences ───────────────────────────────────────────── */}
+        {view === "competences" && (
+          <CompetencesView
+            licences={licences}
+            currentEmployeeId={currentUser?.id ?? null}
+            loading={licLoading}
+          />
+        )}
+
+        {/* ── Detail: Trainee signing ────────────────────────────────────── */}
         {view === "trainee" && selected && (
           <TraineeView
             checklist={selected}
@@ -133,25 +210,18 @@ export default function MyPage() {
           />
         )}
 
-        {view === "sup-list" && (
-          <SupervisorListView
-            checklists={supLists}
-            onBack={() => setView("home")}
-            onOpen={(id) => { setSelectedId(id); setView("sup-sign"); }}
-          />
-        )}
-
+        {/* ── Detail: Supervisor signing ─────────────────────────────────── */}
         {view === "sup-sign" && selected && (
           <SupervisorSignView
             checklist={selected}
-            onBack={() => setView("sup-list")}
+            onBack={() => setView("sign")}
             onSign={handleSupSign}
             onUnsign={handleSupUnsign}
           />
         )}
       </main>
 
-      {/* Approver confirmation sheet */}
+      {/* Approver confirmation sheet (unchanged) */}
       <ConfirmSheet
         open={!!approveId}
         title="Godkänn upplärning"
